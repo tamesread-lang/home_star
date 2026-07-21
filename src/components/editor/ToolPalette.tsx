@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  MousePointer2, Eraser, Pencil, Ruler, Grid3X3, DoorOpen, Scan,
-  Square, Ruler as MeasureIcon, Move, Package,
+  MousePointer2, Eraser, Pencil, Square, DoorOpen, Scan, Armchair, Grid3x3,
 } from "lucide-react";
 import IconButton from "@/components/ui/IconButton";
 import { useEditorStore } from "@/store/editor-store";
@@ -15,18 +14,19 @@ const tools: { id: Tool; icon: typeof MousePointer2; label: string }[] = [
   { id: "door", icon: DoorOpen, label: "Door" },
   { id: "window", icon: Scan, label: "Window" },
   { id: "eraser", icon: Eraser, label: "Eraser (E)" },
-  { id: "dimension", icon: Ruler, label: "Dimension (D)" },
-  { id: "measure", icon: MeasureIcon, label: "Measure" },
-  { id: "pan", icon: Move, label: "Pan" },
 ];
 
 export default function ToolPalette() {
   const activeTool = useEditorStore((s) => s.activeTool);
   const gridVisible = useEditorStore((s) => s.gridVisible);
+  const catalogVisible = useEditorStore((s) => s.catalogVisible);
+  const snapSize = useEditorStore((s) => s.snapSize);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const toggleGrid = useEditorStore((s) => s.toggleGrid);
   const setCatalogVisible = useEditorStore((s) => s.setCatalogVisible);
-  const catalogVisible = useEditorStore((s) => s.catalogVisible);
+  const setActiveFurnitureTemplate = useEditorStore(
+    (s) => s.setActiveFurnitureTemplate
+  );
 
   return (
     <aside className="flex flex-col items-center gap-2 w-14 py-3 border-r border-border bg-surface shrink-0">
@@ -36,24 +36,31 @@ export default function ToolPalette() {
           icon={tool.icon}
           label={tool.label}
           active={activeTool === tool.id}
-          onClick={() => setActiveTool(tool.id)}
+          onClick={() => {
+            setActiveFurnitureTemplate(null);
+            setActiveTool(tool.id);
+          }}
         />
       ))}
 
       <div className="w-8 h-px bg-border my-1" />
 
       <IconButton
-        icon={Grid3X3}
-        label="Toggle Grid"
-        active={gridVisible}
-        onClick={toggleGrid}
+        icon={Armchair}
+        label={catalogVisible ? "Close Catalog" : "Furniture"}
+        active={catalogVisible}
+        onClick={() => {
+          setCatalogVisible(!catalogVisible);
+        }}
       />
 
       <IconButton
-        icon={Package}
-        label="Catalog"
-        active={catalogVisible}
-        onClick={() => setCatalogVisible(!catalogVisible)}
+        icon={Grid3x3}
+        label={`Grid ${gridVisible ? "ON" : "OFF"} (Snap: ${
+          snapSize > 0 ? `${(snapSize / 50).toFixed(snapSize < 25 ? 1 : 0)}m` : "Free"
+        })`}
+        active={gridVisible}
+        onClick={toggleGrid}
       />
     </aside>
   );

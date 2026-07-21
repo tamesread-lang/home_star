@@ -1,6 +1,5 @@
 export type Tool =
-  | "select" | "wall" | "eraser" | "dimension"
-  | "door" | "window" | "room" | "measure" | "pan";
+  | "select" | "wall" | "room" | "door" | "window" | "eraser";
 
 export type WallType = "exterior" | "interior";
 
@@ -123,7 +122,6 @@ export interface EditorState {
   is3DFullscreen: boolean;
   catalogVisible: boolean;
   activeFurnitureTemplate: FurnitureTemplate | null;
-  measurePoints: Point[];
 }
 
 export interface EditorActions {
@@ -153,6 +151,4 @@ export interface EditorActions {
   setIs3DFullscreen: (fullscreen: boolean) => void;
   setCatalogVisible: (visible: boolean) => void;
   setActiveFurnitureTemplate: (template: FurnitureTemplate | null) => void;
-  addMeasurePoint: (point: Point) => void;
-  clearMeasurePoints: () => void;
 }

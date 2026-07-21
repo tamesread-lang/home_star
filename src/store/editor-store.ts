@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { EditorState, EditorActions } from "@/types/editor";
-import { getDefaultThickness } from "@/types/editor";
 
 type EditorStore = EditorState & EditorActions;
 
@@ -17,7 +16,7 @@ function pushHistory(state: EditorState): Partial<EditorState> {
 export const useEditorStore = create<EditorStore>((set) => ({
   activeTool: "select",
   gridVisible: true,
-  snapSize: 50,
+  snapSize: 25,
   walls: [],
   openings: [],
   furniture: [],
@@ -34,7 +33,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
   is3DFullscreen: false,
   catalogVisible: false,
   activeFurnitureTemplate: null,
-  measurePoints: [],
 
   setActiveTool: (tool) =>
     set({
@@ -42,8 +40,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
       selectedWallId: null,
       selectedOpeningId: null,
       selectedFurnitureId: null,
-      measurePoints: [],
-      activeFurnitureTemplate: null,
     }),
 
   toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
@@ -66,14 +62,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setActiveFurnitureTemplate: (template) =>
     set({ activeFurnitureTemplate: template }),
-
-  addMeasurePoint: (point) =>
-    set((s) => {
-      const pts = s.measurePoints.length >= 2 ? [point] : [...s.measurePoints, point];
-      return { measurePoints: pts };
-    }),
-
-  clearMeasurePoints: () => set({ measurePoints: [] }),
 
   addWall: (wall) =>
     set((s) => ({

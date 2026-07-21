@@ -24,9 +24,6 @@ export default function Home() {
         case "e":
           setActiveTool("eraser");
           break;
-        case "d":
-          setActiveTool("dimension");
-          break;
         case "z":
           if (e.ctrlKey || e.metaKey) {
             const store = useEditorStore.getState();
