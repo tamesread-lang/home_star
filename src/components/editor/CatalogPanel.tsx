@@ -10,6 +10,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   Bedroom: "🛏",
   Bathroom: "🚿",
   Kitchen: "🍳",
+  Architectural: "🏗",
 };
 
 export default function CatalogPanel() {

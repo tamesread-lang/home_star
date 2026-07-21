@@ -19,9 +19,13 @@ const SNAP_OPTIONS = [
 export default function InspectorPanel() {
   const walls = useEditorStore((s) => s.walls);
   const openings = useEditorStore((s) => s.openings);
+  const columns = useEditorStore((s) => s.columns);
+  const labels = useEditorStore((s) => s.labels);
   const furniture = useEditorStore((s) => s.furniture);
   const selectedWallId = useEditorStore((s) => s.selectedWallId);
   const selectedOpeningId = useEditorStore((s) => s.selectedOpeningId);
+  const selectedColumnId = useEditorStore((s) => s.selectedColumnId);
+  const selectedLabelId = useEditorStore((s) => s.selectedLabelId);
   const selectedFurnitureId = useEditorStore((s) => s.selectedFurnitureId);
   const landWidth = useEditorStore((s) => s.landWidth);
   const landLength = useEditorStore((s) => s.landLength);
@@ -38,6 +42,10 @@ export default function InspectorPanel() {
   const updateWall = useEditorStore((s) => s.updateWall);
   const updateOpening = useEditorStore((s) => s.updateOpening);
   const deleteOpening = useEditorStore((s) => s.deleteOpening);
+  const updateColumn = useEditorStore((s) => s.updateColumn);
+  const updateLabel = useEditorStore((s) => s.updateLabel);
+  const updateFurniture = useEditorStore((s) => s.updateFurniture);
+  const deleteFurniture = useEditorStore((s) => s.deleteFurniture);
 
   const selectedWall = useMemo(
     () => walls.find((w) => w.id === selectedWallId) ?? null,
@@ -47,6 +55,16 @@ export default function InspectorPanel() {
   const selectedOpening = useMemo(
     () => openings.find((o) => o.id === selectedOpeningId) ?? null,
     [openings, selectedOpeningId]
+  );
+
+  const selectedColumn = useMemo(
+    () => columns.find((c) => c.id === selectedColumnId) ?? null,
+    [columns, selectedColumnId]
+  );
+
+  const selectedLabel = useMemo(
+    () => labels.find((l) => l.id === selectedLabelId) ?? null,
+    [labels, selectedLabelId]
   );
 
   const selectedFurniture = useMemo(
@@ -187,6 +205,12 @@ export default function InspectorPanel() {
               </span>
             </div>
             <div className="flex items-center justify-between">
+              <label className="text-sm text-muted">Columns</label>
+              <span className="text-sm font-mono tabular-nums">
+                {columns.length}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
               <label className="text-sm text-muted">Furniture</label>
               <span className="text-sm font-mono tabular-nums">
                 {furniture.length}
@@ -321,13 +345,15 @@ export default function InspectorPanel() {
             <div className="w-full h-px bg-border" />
             <div>
               <h3 className="text-xs font-medium text-muted mb-2">
-                {selectedOpening.type === "door" ? "Door" : "Window"}
+                {selectedOpening.type === "door" ? "Door"
+                  : selectedOpening.type === "sliding_door" ? "Sliding Door"
+                  : "Window"}
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-muted">Type</label>
                   <span className="text-sm font-mono tabular-nums capitalize">
-                    {selectedOpening.type}
+                    {selectedOpening.type.replace("_", " ")}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -410,7 +436,130 @@ export default function InspectorPanel() {
                   onClick={() => deleteOpening(selectedOpening.id)}
                   className="w-full text-xs text-red-400 border border-red-400/30 rounded px-2 py-1 hover:bg-red-400/10 mt-2"
                 >
-                  Delete {selectedOpening.type === "door" ? "Door" : "Window"}
+                  Delete {selectedOpening.type === "door" ? "Door"
+                    : selectedOpening.type === "sliding_door" ? "Sliding Door"
+                    : "Window"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {selectedColumn && (
+          <>
+            <div className="w-full h-px bg-border" />
+            <div>
+              <h3 className="text-xs font-medium text-muted mb-2">
+                Structural Column
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Width (m)</label>
+                  <input
+                    type="number"
+                    min={0.1}
+                    max={2}
+                    step={0.05}
+                    value={selectedColumn.width}
+                    onChange={(e) =>
+                      updateColumn(selectedColumn.id, {
+                        width: Math.max(0.1, parseFloat(e.target.value) || 0.1),
+                      })
+                    }
+                    className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Depth (m)</label>
+                  <input
+                    type="number"
+                    min={0.1}
+                    max={2}
+                    step={0.05}
+                    value={selectedColumn.depth}
+                    onChange={(e) =>
+                      updateColumn(selectedColumn.id, {
+                        depth: Math.max(0.1, parseFloat(e.target.value) || 0.1),
+                      })
+                    }
+                    className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Height (m)</label>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={10}
+                    step={0.1}
+                    value={selectedColumn.height}
+                    onChange={(e) =>
+                      updateColumn(selectedColumn.id, {
+                        height: Math.max(0.5, parseFloat(e.target.value) || 0.5),
+                      })
+                    }
+                    className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const state = useEditorStore.getState();
+                    state.deleteColumn(selectedColumn.id);
+                    state.clearSelection();
+                  }}
+                  className="w-full text-xs text-red-400 border border-red-400/30 rounded px-2 py-1 hover:bg-red-400/10 mt-2"
+                >
+                  Delete Column
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {selectedLabel && (
+          <>
+            <div className="w-full h-px bg-border" />
+            <div>
+              <h3 className="text-xs font-medium text-muted mb-2">
+                Room Label
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Text</label>
+                  <input
+                    type="text"
+                    value={selectedLabel.text}
+                    onChange={(e) =>
+                      updateLabel(selectedLabel.id, { text: e.target.value })
+                    }
+                    className="w-32 text-right text-sm font-mono bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Rotation</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={360}
+                    step={90}
+                    value={selectedLabel.rotation}
+                    onChange={(e) =>
+                      updateLabel(selectedLabel.id, {
+                        rotation: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const state = useEditorStore.getState();
+                    state.deleteLabel(selectedLabel.id);
+                    state.clearSelection();
+                  }}
+                  className="w-full text-xs text-red-400 border border-red-400/30 rounded px-2 py-1 hover:bg-red-400/10 mt-2"
+                >
+                  Delete Label
                 </button>
               </div>
             </div>
@@ -427,48 +576,107 @@ export default function InspectorPanel() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-muted">Width (m)</label>
-                  <span className="text-sm font-mono tabular-nums">
-                    {selectedFurniture.width.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm text-muted">Depth (m)</label>
-                  <span className="text-sm font-mono tabular-nums">
-                    {selectedFurniture.height.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm text-muted">Rotation</label>
                   <input
                     type="number"
-                    min={0}
-                    max={360}
-                    step={90}
-                    value={selectedFurniture.rotation}
-                    onChange={(e) => {
-                      const rot = parseFloat(e.target.value) || 0;
-                      useEditorStore
-                        .getState()
-                        .updateFurniture(selectedFurniture.id, {
-                          rotation: rot,
-                        });
-                    }}
+                    min={0.1}
+                    max={10}
+                    step={0.05}
+                    value={selectedFurniture.width}
+                    onChange={(e) =>
+                      updateFurniture(selectedFurniture.id, {
+                        width: Math.max(0.1, parseFloat(e.target.value) || 0.1),
+                      })
+                    }
                     className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
                   />
                 </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Depth (m)</label>
+                  <input
+                    type="number"
+                    min={0.1}
+                    max={10}
+                    step={0.05}
+                    value={selectedFurniture.height}
+                    onChange={(e) =>
+                      updateFurniture(selectedFurniture.id, {
+                        height: Math.max(0.1, parseFloat(e.target.value) || 0.1),
+                      })
+                    }
+                    className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Elevation (m)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10}
+                    step={0.05}
+                    value={selectedFurniture.elevation}
+                    onChange={(e) =>
+                      updateFurniture(selectedFurniture.id, {
+                        elevation: Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm text-muted">Rotation</label>
+                  <span className="text-sm font-mono tabular-nums">
+                    {selectedFurniture.rotation}&deg;
+                  </span>
+                </div>
+                <div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={1}
+                    value={selectedFurniture.rotation}
+                    onChange={(e) =>
+                      updateFurniture(selectedFurniture.id, {
+                        rotation: parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-full accent-accent"
+                  />
+                  <div className="flex justify-between text-[9px] text-muted/50 font-mono mt-0.5">
+                    <span>0&deg;</span>
+                    <span>180&deg;</span>
+                    <span>360&deg;</span>
+                  </div>
+                </div>
                 <button
                   onClick={() =>
-                    useEditorStore
-                      .getState()
-                      .deleteFurniture(selectedFurniture.id)
+                    updateFurniture(selectedFurniture.id, {
+                      rotation: (selectedFurniture.rotation + 90) % 360,
+                    })
                   }
-                  className="w-full text-xs text-red-400 border border-red-400/30 rounded px-2 py-1 hover:bg-red-400/10 mt-2"
+                  className="w-full text-xs text-accent border border-accent/30 rounded px-2 py-1 hover:bg-accent/10 mt-1"
+                >
+                  Rotate 90&deg;
+                </button>
+                <button
+                  onClick={() => {
+                    const state = useEditorStore.getState();
+                    state.deleteFurniture(selectedFurniture.id);
+                    state.clearSelection();
+                  }}
+                  className="w-full text-xs text-red-400 border border-red-400/30 rounded px-2 py-1 hover:bg-red-400/10 mt-1"
                 >
                   Delete
                 </button>
               </div>
             </div>
           </>
+        )}
+
+        {!selectedWall && !selectedOpening && !selectedColumn && !selectedLabel && !selectedFurniture && (
+          <p className="text-xs text-muted/50 text-center pt-2">
+            Select an element to edit its properties
+          </p>
         )}
       </div>
     </aside>

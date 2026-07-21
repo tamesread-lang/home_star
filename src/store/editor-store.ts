@@ -19,9 +19,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
   snapSize: 25,
   walls: [],
   openings: [],
+  columns: [],
+  labels: [],
+  measureLines: [],
   furniture: [],
   selectedWallId: null,
   selectedOpeningId: null,
+  selectedColumnId: null,
+  selectedLabelId: null,
   selectedFurnitureId: null,
   history: [[]],
   historyIndex: 0,
@@ -39,6 +44,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
       activeTool: tool,
       selectedWallId: null,
       selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
       selectedFurnitureId: null,
     }),
 
@@ -98,7 +105,13 @@ export const useEditorStore = create<EditorStore>((set) => ({
     }),
 
   selectWall: (id) =>
-    set({ selectedWallId: id, selectedOpeningId: null, selectedFurnitureId: null }),
+    set({
+      selectedWallId: id,
+      selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
+      selectedFurnitureId: null,
+    }),
 
   addOpening: (opening) =>
     set((s) => ({
@@ -120,7 +133,77 @@ export const useEditorStore = create<EditorStore>((set) => ({
     })),
 
   selectOpening: (id) =>
-    set({ selectedOpeningId: id, selectedWallId: null, selectedFurnitureId: null }),
+    set({
+      selectedOpeningId: id,
+      selectedWallId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
+      selectedFurnitureId: null,
+    }),
+
+  addColumn: (column) =>
+    set((s) => ({
+      columns: [...s.columns, column],
+    })),
+
+  updateColumn: (id, updates) =>
+    set((s) => ({
+      columns: s.columns.map((c) =>
+        c.id === id ? { ...c, ...updates } : c
+      ),
+    })),
+
+  deleteColumn: (id) =>
+    set((s) => ({
+      columns: s.columns.filter((c) => c.id !== id),
+      selectedColumnId:
+        s.selectedColumnId === id ? null : s.selectedColumnId,
+    })),
+
+  selectColumn: (id) =>
+    set({
+      selectedColumnId: id,
+      selectedWallId: null,
+      selectedOpeningId: null,
+      selectedLabelId: null,
+      selectedFurnitureId: null,
+    }),
+
+  addLabel: (label) =>
+    set((s) => ({
+      labels: [...s.labels, label],
+    })),
+
+  updateLabel: (id, updates) =>
+    set((s) => ({
+      labels: s.labels.map((l) =>
+        l.id === id ? { ...l, ...updates } : l
+      ),
+    })),
+
+  deleteLabel: (id) =>
+    set((s) => ({
+      labels: s.labels.filter((l) => l.id !== id),
+      selectedLabelId:
+        s.selectedLabelId === id ? null : s.selectedLabelId,
+    })),
+
+  selectLabel: (id) =>
+    set({
+      selectedLabelId: id,
+      selectedWallId: null,
+      selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedFurnitureId: null,
+    }),
+
+  addMeasureLine: (line) =>
+    set((s) => ({
+      measureLines: [...s.measureLines, line],
+    })),
+
+  clearMeasureLines: () =>
+    set({ measureLines: [] }),
 
   addFurniture: (item) =>
     set((s) => ({
@@ -142,7 +225,13 @@ export const useEditorStore = create<EditorStore>((set) => ({
     })),
 
   selectFurniture: (id) =>
-    set({ selectedFurnitureId: id, selectedWallId: null, selectedOpeningId: null }),
+    set({
+      selectedFurnitureId: id,
+      selectedWallId: null,
+      selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
+    }),
 
   undo: () =>
     set((s) => {
@@ -168,6 +257,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set({
       selectedWallId: null,
       selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
       selectedFurnitureId: null,
     }),
 }));

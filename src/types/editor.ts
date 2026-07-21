@@ -1,7 +1,10 @@
 export type Tool =
-  | "select" | "wall" | "room" | "door" | "window" | "eraser";
+  | "select" | "wall" | "room" | "column"
+  | "door" | "sliding_door" | "window"
+  | "label" | "measure" | "rotate" | "eraser";
 
 export type WallType = "exterior" | "interior";
+export type OpeningType = "door" | "sliding_door" | "window";
 
 export interface Point {
   x: number;
@@ -22,11 +25,36 @@ export interface Wall {
 export interface Opening {
   id: string;
   wallId: string;
-  type: "door" | "window";
+  type: OpeningType;
   position: number;
   width: number;
   height: number;
   sillHeight: number;
+}
+
+export interface Column {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  height: number;
+}
+
+export interface FloorLabel {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  rotation: number;
+}
+
+export interface MeasureLine {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }
 
 export interface FurnitureItem {
@@ -38,6 +66,7 @@ export interface FurnitureItem {
   width: number;
   height: number;
   rotation: number;
+  elevation: number;
 }
 
 export interface FurnitureTemplate {
@@ -76,25 +105,36 @@ export function openingPositionOnWall(
 
 export const FURNITURE_CATALOG: Record<string, FurnitureTemplate[]> = {
   "Living Room": [
-    { name: "Sofa", width: 2.0, height: 0.9 },
+    { name: "L-Shape Sofa", width: 2.5, height: 1.8 },
+    { name: "Armchair", width: 0.9, height: 0.9 },
     { name: "Coffee Table", width: 1.2, height: 0.6 },
-    { name: "TV Stand", width: 1.8, height: 0.5 },
+    { name: "TV Console", width: 1.8, height: 0.5 },
+    { name: "Bookshelf", width: 0.8, height: 0.4 },
   ],
   "Bedroom": [
-    { name: "Double Bed", width: 1.8, height: 2.0 },
+    { name: "King Bed", width: 2.0, height: 2.0 },
+    { name: "Queen Bed", width: 1.6, height: 2.0 },
     { name: "Single Bed", width: 1.0, height: 2.0 },
-    { name: "Wardrobe", width: 1.2, height: 0.6 },
+    { name: "Wardrobe", width: 1.5, height: 0.6 },
     { name: "Nightstand", width: 0.5, height: 0.5 },
   ],
-  "Bathroom": [
-    { name: "Sink", width: 0.6, height: 0.5 },
-    { name: "Toilet", width: 0.4, height: 0.7 },
-    { name: "Bathtub", width: 1.7, height: 0.8 },
-  ],
   "Kitchen": [
-    { name: "Dining Table", width: 1.5, height: 0.9 },
-    { name: "Stove", width: 0.6, height: 0.6 },
-    { name: "Fridge", width: 0.7, height: 0.7 },
+    { name: "L-Counter", width: 2.0, height: 1.5 },
+    { name: "Kitchen Island", width: 1.8, height: 0.9 },
+    { name: "Fridge", width: 0.8, height: 0.8 },
+    { name: "Gas Stove", width: 0.9, height: 0.6 },
+    { name: "Dining Table 6-Chair", width: 1.8, height: 0.9 },
+  ],
+  "Bathroom": [
+    { name: "Bathtub", width: 1.7, height: 0.75 },
+    { name: "Shower Cabin", width: 1.0, height: 1.0 },
+    { name: "Toilet", width: 0.5, height: 0.7 },
+    { name: "Vanity Sink", width: 1.0, height: 0.5 },
+  ],
+  "Architectural": [
+    { name: "Straight Stairs", width: 3.0, height: 1.0 },
+    { name: "L-Shape Stairs", width: 2.5, height: 2.5 },
+    { name: "Car Garage", width: 3.0, height: 6.0 },
   ],
 };
 
@@ -108,9 +148,14 @@ export interface EditorState {
   snapSize: number;
   walls: Wall[];
   openings: Opening[];
+  columns: Column[];
+  labels: FloorLabel[];
+  measureLines: MeasureLine[];
   furniture: FurnitureItem[];
   selectedWallId: string | null;
   selectedOpeningId: string | null;
+  selectedColumnId: string | null;
+  selectedLabelId: string | null;
   selectedFurnitureId: string | null;
   history: Wall[][];
   historyIndex: number;
@@ -136,6 +181,16 @@ export interface EditorActions {
   updateOpening: (id: string, updates: Partial<Opening>) => void;
   deleteOpening: (id: string) => void;
   selectOpening: (id: string | null) => void;
+  addColumn: (column: Column) => void;
+  updateColumn: (id: string, updates: Partial<Column>) => void;
+  deleteColumn: (id: string) => void;
+  selectColumn: (id: string | null) => void;
+  addLabel: (label: FloorLabel) => void;
+  updateLabel: (id: string, updates: Partial<FloorLabel>) => void;
+  deleteLabel: (id: string) => void;
+  selectLabel: (id: string | null) => void;
+  addMeasureLine: (line: MeasureLine) => void;
+  clearMeasureLines: () => void;
   addFurniture: (item: FurnitureItem) => void;
   updateFurniture: (id: string, updates: Partial<FurnitureItem>) => void;
   deleteFurniture: (id: string) => void;

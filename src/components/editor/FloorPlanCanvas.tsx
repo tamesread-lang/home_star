@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Stage, Layer, Line, Circle, Text, Group, Rect } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useEditorStore } from "@/store/editor-store";
-import type { Point, Wall, Opening, FurnitureItem } from "@/types/editor";
+import type { Point, Wall, Opening, FurnitureItem, Column, FloorLabel } from "@/types/editor";
 import {
   openingPositionOnWall,
   getDefaultThickness,
@@ -47,16 +47,22 @@ export default function FloorPlanCanvas() {
   const [drawingStart, setDrawingStart] = useState<Point | null>(null);
   const [drawingEnd, setDrawingEnd] = useState<Point | null>(null);
   const [mousePos, setMousePos] = useState<Point | null>(null);
+  const [measureStart, setMeasureStart] = useState<Point | null>(null);
   const isDrawingRef = useRef(false);
 
   const walls = useEditorStore((s) => s.walls);
   const openings = useEditorStore((s) => s.openings);
+  const columns = useEditorStore((s) => s.columns);
+  const labels = useEditorStore((s) => s.labels);
+  const measureLines = useEditorStore((s) => s.measureLines);
   const furniture = useEditorStore((s) => s.furniture);
   const activeTool = useEditorStore((s) => s.activeTool);
   const gridVisible = useEditorStore((s) => s.gridVisible);
   const snapSize = useEditorStore((s) => s.snapSize);
   const selectedWallId = useEditorStore((s) => s.selectedWallId);
   const selectedOpeningId = useEditorStore((s) => s.selectedOpeningId);
+  const selectedColumnId = useEditorStore((s) => s.selectedColumnId);
+  const selectedLabelId = useEditorStore((s) => s.selectedLabelId);
   const selectedFurnitureId = useEditorStore((s) => s.selectedFurnitureId);
   const landWidth = useEditorStore((s) => s.landWidth);
   const landLength = useEditorStore((s) => s.landLength);
@@ -70,10 +76,19 @@ export default function FloorPlanCanvas() {
   const deleteWall = useEditorStore((s) => s.deleteWall);
   const selectWall = useEditorStore((s) => s.selectWall);
   const selectOpening = useEditorStore((s) => s.selectOpening);
+  const selectColumn = useEditorStore((s) => s.selectColumn);
+  const selectLabel = useEditorStore((s) => s.selectLabel);
   const selectFurniture = useEditorStore((s) => s.selectFurniture);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addOpening = useEditorStore((s) => s.addOpening);
   const addFurniture = useEditorStore((s) => s.addFurniture);
+  const deleteFurniture = useEditorStore((s) => s.deleteFurniture);
+  const addColumn = useEditorStore((s) => s.addColumn);
+  const addLabel = useEditorStore((s) => s.addLabel);
+  const deleteColumn = useEditorStore((s) => s.deleteColumn);
+  const deleteLabel = useEditorStore((s) => s.deleteLabel);
+  const addMeasureLine = useEditorStore((s) => s.addMeasureLine);
+  const updateFurniture = useEditorStore((s) => s.updateFurniture);
   const setActiveFurnitureTemplate = useEditorStore(
     (s) => s.setActiveFurnitureTemplate
   );
@@ -128,6 +143,38 @@ export default function FloorPlanCanvas() {
     [walls]
   );
 
+  const getColumnAtPoint = useCallback(
+    (pos: Point): Column | null => {
+      const threshold = 10;
+      for (let i = columns.length - 1; i >= 0; i--) {
+        const c = columns[i];
+        const hw = (c.width * GRID_SIZE) / 2;
+        const hd = (c.depth * GRID_SIZE) / 2;
+        if (
+          pos.x >= c.x - hw &&
+          pos.x <= c.x + hw &&
+          pos.y >= c.y - hd &&
+          pos.y <= c.y + hd
+        )
+          return c;
+      }
+      return null;
+    },
+    [columns]
+  );
+
+  const getLabelAtPoint = useCallback(
+    (pos: Point): FloorLabel | null => {
+      const threshold = 15;
+      for (let i = labels.length - 1; i >= 0; i--) {
+        const l = labels[i];
+        if (distance(pos, { x: l.x, y: l.y }) < threshold) return l;
+      }
+      return null;
+    },
+    [labels]
+  );
+
   const getFurnitureAtPoint = useCallback(
     (pos: Point): FurnitureItem | null => {
       for (let i = furniture.length - 1; i >= 0; i--) {
@@ -167,6 +214,38 @@ export default function FloorPlanCanvas() {
     [walls, activeTool, snapSize]
   );
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (activeTool !== "select" && activeTool !== "eraser") return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const state = useEditorStore.getState();
+        if (state.selectedWallId) {
+          state.deleteWall(state.selectedWallId);
+          state.clearSelection();
+        } else if (state.selectedFurnitureId) {
+          state.deleteFurniture(state.selectedFurnitureId);
+          state.clearSelection();
+        } else if (state.selectedColumnId) {
+          state.deleteColumn(state.selectedColumnId);
+          state.clearSelection();
+        } else if (state.selectedLabelId) {
+          state.deleteLabel(state.selectedLabelId);
+          state.clearSelection();
+        } else if (state.selectedOpeningId) {
+          state.deleteOpening(state.selectedOpeningId);
+          state.clearSelection();
+        }
+      }
+    },
+    [activeTool]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   const handleMouseDown = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
       const pos = getStagePos(e);
@@ -182,8 +261,69 @@ export default function FloorPlanCanvas() {
           width: activeFurnitureTemplate.width,
           height: activeFurnitureTemplate.height,
           rotation: 0,
+          elevation: 0,
         });
         setActiveFurnitureTemplate(null);
+        return;
+      }
+
+      // COLUMN placement
+      if (activeTool === "column") {
+        addColumn({
+          id: genId("col"),
+          x: snapSize > 0 ? snapToGrid(pos.x, snapSize) : pos.x,
+          y: snapSize > 0 ? snapToGrid(pos.y, snapSize) : pos.y,
+          width: 0.3,
+          depth: 0.3,
+          height: wallHeight,
+        });
+        return;
+      }
+
+      // LABEL placement
+      if (activeTool === "label") {
+        const text = window.prompt("Room/Label name:", "Room") || "Room";
+        addLabel({
+          id: genId("lbl"),
+          x: pos.x,
+          y: pos.y,
+          text,
+          rotation: 0,
+        });
+        return;
+      }
+
+      // MEASURE tool — two clicks to place a measure line
+      if (activeTool === "measure") {
+        const snapped = {
+          x: snapSize > 0 ? snapToGrid(pos.x, snapSize) : pos.x,
+          y: snapSize > 0 ? snapToGrid(pos.y, snapSize) : pos.y,
+        };
+        if (!measureStart) {
+          setMeasureStart(snapped);
+        } else {
+          if (distance(measureStart, snapped) > 3) {
+            addMeasureLine({
+              id: genId("meas"),
+              x1: measureStart.x,
+              y1: measureStart.y,
+              x2: snapped.x,
+              y2: snapped.y,
+            });
+          }
+          setMeasureStart(null);
+        }
+        return;
+      }
+
+      // ROTATE tool — click furniture to rotate 45°
+      if (activeTool === "rotate") {
+        const clickedFurniture = getFurnitureAtPoint(pos);
+        if (clickedFurniture) {
+          updateFurniture(clickedFurniture.id, {
+            rotation: (clickedFurniture.rotation + 45) % 360,
+          });
+        }
         return;
       }
 
@@ -225,6 +365,16 @@ export default function FloorPlanCanvas() {
           selectFurniture(clickedFurniture.id);
           return;
         }
+        const clickedLabel = getLabelAtPoint(pos);
+        if (clickedLabel) {
+          selectLabel(clickedLabel.id);
+          return;
+        }
+        const clickedColumn = getColumnAtPoint(pos);
+        if (clickedColumn) {
+          selectColumn(clickedColumn.id);
+          return;
+        }
         const clickedWall = getWallAtPoint(pos);
         if (clickedWall) {
           selectWall(clickedWall.id);
@@ -234,42 +384,78 @@ export default function FloorPlanCanvas() {
         return;
       }
 
-      if (activeTool === "door" || activeTool === "window") {
+      // DOOR / SLIDING_DOOR / WINDOW
+      if (activeTool === "door" || activeTool === "sliding_door" || activeTool === "window") {
         const clickedWall = getWallAtPoint(pos);
         if (clickedWall) {
           const t = openingPositionOnWall(clickedWall, pos.x, pos.y);
           const isDoor = activeTool === "door";
+          const isSliding = activeTool === "sliding_door";
+          const isWindow = activeTool === "window";
+          let width = 0.9;
+          let sillHeight = 0;
+          if (isWindow) { width = 1.2; sillHeight = 0.9; }
+          if (isSliding) { width = 1.8; sillHeight = 0; }
           addOpening({
             id: genId("open"),
             wallId: clickedWall.id,
-            type: isDoor ? "door" : "window",
+            type: isDoor ? "door" : isSliding ? "sliding_door" : "window",
             position: t,
-            width: isDoor ? 0.9 : 1.2,
-            height: isDoor ? 2.1 : 1.2,
-            sillHeight: isDoor ? 0 : 0.9,
+            width,
+            height: isWindow ? 1.2 : 2.1,
+            sillHeight,
           });
         }
         return;
       }
 
       if (activeTool === "eraser") {
+        const clickedFurnitureItem = getFurnitureAtPoint(pos);
+        if (clickedFurnitureItem) {
+          deleteFurniture(clickedFurnitureItem.id);
+          return;
+        }
+        const clickedLabel = getLabelAtPoint(pos);
+        if (clickedLabel) {
+          deleteLabel(clickedLabel.id);
+          return;
+        }
+        const clickedColumn = getColumnAtPoint(pos);
+        if (clickedColumn) {
+          deleteColumn(clickedColumn.id);
+          return;
+        }
         const clickedWall = getWallAtPoint(pos);
         if (clickedWall) {
           deleteWall(clickedWall.id);
-        } else {
-          const clickedFurnitureItem = getFurnitureAtPoint(pos);
-          if (clickedFurnitureItem) {
-            useEditorStore.getState().deleteFurniture(clickedFurnitureItem.id);
+          return;
+        }
+        const clickedOpening = (() => {
+          const threshold = 10;
+          for (let i = openings.length - 1; i >= 0; i--) {
+            const op = openings[i];
+            const pw = walls.find((w) => w.id === op.wallId);
+            if (!pw) continue;
+            const px = pw.x1 + op.position * (pw.x2 - pw.x1);
+            const py = pw.y1 + op.position * (pw.y2 - pw.y1);
+            if (distance(pos, { x: px, y: py }) < threshold) return op;
           }
+          return null;
+        })();
+        if (clickedOpening) {
+          useEditorStore.getState().deleteOpening(clickedOpening.id);
         }
         return;
       }
     },
     [
       activeTool, drawingStart, getStagePos, snapPoint, addWall, selectWall,
-      clearSelection, deleteWall, getWallAtPoint, addOpening, wallHeight,
-      wallType, getFurnitureAtPoint, selectFurniture, activeFurnitureTemplate,
-      addFurniture, setActiveFurnitureTemplate,
+      selectColumn, selectLabel, selectFurniture,
+      clearSelection, deleteWall, deleteColumn, deleteLabel, deleteFurniture,
+      getWallAtPoint, getColumnAtPoint, getLabelAtPoint, getFurnitureAtPoint,
+      addOpening, addFurniture, addColumn, addLabel, addMeasureLine,
+      updateFurniture, wallHeight, wallType, measureStart, snapSize,
+      activeFurnitureTemplate, setActiveFurnitureTemplate, walls, openings, columns, labels, furniture,
     ]
   );
 
@@ -379,6 +565,20 @@ export default function FloorPlanCanvas() {
     />
   );
 
+  // Measure preview line while placing
+  const measurePreview = activeTool === "measure" && measureStart && mousePos && (
+    <Group>
+      <Line points={[measureStart.x, measureStart.y, mousePos.x, mousePos.y]}
+        stroke="#f59e0b" strokeWidth={2} dash={[6, 3]} />
+      <Circle x={measureStart.x} y={measureStart.y} radius={4} fill="#f59e0b" />
+      <Text
+        x={(measureStart.x + mousePos.x) / 2 - 25}
+        y={(measureStart.y + mousePos.y) / 2 - 14}
+        text={`${(distance(measureStart, mousePos) / GRID_SIZE).toFixed(2)} m`}
+        fontSize={11} fill="#f59e0b" fontFamily="monospace" />
+    </Group>
+  );
+
   return (
     <div ref={containerRef} className="relative flex-1 bg-[#0f0f23] overflow-hidden">
       <Stage
@@ -391,6 +591,7 @@ export default function FloorPlanCanvas() {
           e.evt.preventDefault();
           setDrawingStart(null);
           setDrawingEnd(null);
+          setMeasureStart(null);
           isDrawingRef.current = false;
         }}
       >
@@ -460,24 +661,67 @@ export default function FloorPlanCanvas() {
             const nx = -dy / len;
             const ny = dx / len;
             const halfW = (opening.width * GRID_SIZE) / 2;
-            const perpLen = opening.type === "door" ? 15 : 10;
+            const perpLen = opening.type === "door" ? 15 : opening.type === "sliding_door" ? 12 : 10;
             const isSelected = opening.id === selectedOpeningId;
-            const color = isSelected ? "#4a7cff" : opening.type === "door" ? "#e8a87c" : "#7cc8e8";
+            const color = isSelected ? "#4a7cff"
+              : opening.type === "door" ? "#e8a87c"
+              : opening.type === "sliding_door" ? "#7cc8e8"
+              : "#7cc8e8";
+
+            if (opening.type === "sliding_door") {
+              return (
+                <Group key={opening.id}>
+                  <Line points={[px - halfW * (dx / len) - nx * 4, py - halfW * (dy / len) - ny * 4, px + halfW * (dx / len) - nx * 4, py + halfW * (dy / len) - ny * 4]} stroke={color} strokeWidth={2} />
+                  <Line points={[px - halfW * (dx / len) + nx * 4, py - halfW * (dy / len) + ny * 4, px + halfW * (dx / len) + nx * 4, py + halfW * (dy / len) + ny * 4]} stroke={color} strokeWidth={2} />
+                  <Line points={[px - halfW * (dx / len), py - halfW * (dy / len), px + halfW * (dx / len), py + halfW * (dy / len)]} stroke={color} strokeWidth={1} dash={[2, 2]} />
+                </Group>
+              );
+            }
+
+            if (opening.type === "door") {
+              return (
+                <Group key={opening.id}>
+                  <Line points={[px - halfW * (dx / len), py - halfW * (dy / len), px + halfW * (dx / len), py + halfW * (dy / len)]} stroke={color} strokeWidth={2} />
+                  <Line points={[px + halfW * (dx / len), py + halfW * (dy / len), px + halfW * (dx / len) + nx * perpLen, py + halfW * (dy / len) + ny * perpLen]} stroke={color} strokeWidth={2} />
+                </Group>
+              );
+            }
 
             return (
               <Group key={opening.id}>
-                {opening.type === "door" ? (
-                  <>
-                    <Line points={[px - halfW * (dx / len), py - halfW * (dy / len), px + halfW * (dx / len), py + halfW * (dy / len)]} stroke={color} strokeWidth={2} />
-                    <Line points={[px + halfW * (dx / len), py + halfW * (dy / len), px + halfW * (dx / len) + nx * perpLen, py + halfW * (dy / len) + ny * perpLen]} stroke={color} strokeWidth={2} />
-                  </>
-                ) : (
-                  <>
-                    <Line points={[px - halfW * (dx / len) + nx * 3, py - halfW * (dy / len) + ny * 3, px + halfW * (dx / len) + nx * 3, py + halfW * (dy / len) + ny * 3]} stroke={color} strokeWidth={2} />
-                    <Line points={[px - halfW * (dx / len) + nx * 3, py - halfW * (dy / len) + ny * 3, px - halfW * (dx / len) + nx * 8, py - halfW * (dy / len) + ny * 8]} stroke={color} strokeWidth={1} />
-                    <Line points={[px + halfW * (dx / len) + nx * 3, py + halfW * (dy / len) + ny * 3, px + halfW * (dx / len) + nx * 8, py + halfW * (dy / len) + ny * 8]} stroke={color} strokeWidth={1} />
-                  </>
-                )}
+                <Line points={[px - halfW * (dx / len) + nx * 3, py - halfW * (dy / len) + ny * 3, px + halfW * (dx / len) + nx * 3, py + halfW * (dy / len) + ny * 3]} stroke={color} strokeWidth={2} />
+                <Line points={[px - halfW * (dx / len) + nx * 3, py - halfW * (dy / len) + ny * 3, px - halfW * (dx / len) + nx * 8, py - halfW * (dy / len) + ny * 8]} stroke={color} strokeWidth={1} />
+                <Line points={[px + halfW * (dx / len) + nx * 3, py + halfW * (dy / len) + ny * 3, px + halfW * (dx / len) + nx * 8, py + halfW * (dy / len) + ny * 8]} stroke={color} strokeWidth={1} />
+              </Group>
+            );
+          })}
+        </Layer>
+
+        <Layer>
+          {columns.map((col) => {
+            const isSelected = col.id === selectedColumnId;
+            const hw = (col.width * GRID_SIZE) / 2;
+            const hd = (col.depth * GRID_SIZE) / 2;
+            return (
+              <Group key={col.id}>
+                <Rect x={col.x - hw} y={col.y - hd} width={col.width * GRID_SIZE} height={col.depth * GRID_SIZE}
+                  fill={isSelected ? "#4a7cff" : "#6b7280"} stroke={isSelected ? "#4a7cff" : "#4b5563"} strokeWidth={1.5} />
+                <Rect x={col.x - hw + 3} y={col.y - hd + 3} width={col.width * GRID_SIZE - 6} height={col.depth * GRID_SIZE - 6}
+                  fill="none" stroke={isSelected ? "#4a7cff" : "#9ca3af"} strokeWidth={0.5} />
+              </Group>
+            );
+          })}
+        </Layer>
+
+        <Layer>
+          {labels.map((lbl) => {
+            const isSelected = lbl.id === selectedLabelId;
+            return (
+              <Group key={lbl.id} x={lbl.x} y={lbl.y} rotation={lbl.rotation}>
+                <Rect x={-lbl.text.length * 4 - 6} y={-9} width={lbl.text.length * 8 + 12} height={18}
+                  fill={isSelected ? "#4a7cff20" : "#00000030"} stroke={isSelected ? "#4a7cff" : "transparent"} strokeWidth={1} cornerRadius={3} />
+                <Text text={lbl.text} fontSize={13} fill={isSelected ? "#4a7cff" : "#e0e0e0"}
+                  fontFamily="monospace" fontStyle="bold" />
               </Group>
             );
           })}
@@ -498,6 +742,22 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
+        </Layer>
+
+        <Layer>
+          {measureLines.map((line) => (
+            <Group key={line.id}>
+              <Line points={[line.x1, line.y1, line.x2, line.y2]}
+                stroke="#f59e0b" strokeWidth={1.5} />
+              <Circle x={line.x1} y={line.y1} radius={3} fill="#f59e0b" />
+              <Circle x={line.x2} y={line.y2} radius={3} fill="#f59e0b" />
+              <Text
+                x={(line.x1 + line.x2) / 2 - 25}
+                y={(line.y1 + line.y2) / 2 - 12}
+                text={`${(distance({ x: line.x1, y: line.y1 }, { x: line.x2, y: line.y2 }) / GRID_SIZE).toFixed(2)} m`}
+                fontSize={10} fill="#f59e0b" fontFamily="monospace" />
+            </Group>
+          ))}
         </Layer>
 
         <Layer>
@@ -526,17 +786,16 @@ export default function FloorPlanCanvas() {
 
         <Layer>
           {furniturePreview}
+          {measurePreview}
         </Layer>
       </Stage>
 
-      {walls.length === 0 && !drawingStart && !activeFurnitureTemplate && (
+      {walls.length === 0 && !drawingStart && !activeFurnitureTemplate && !measureStart && (
         <div className="absolute inset-4 border border-dashed border-border rounded-lg flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <p className="text-muted text-sm">2D Floor Plan Canvas</p>
             <p className="text-muted/50 text-xs mt-1">
-              {activeTool === "wall" || activeTool === "room"
-                ? "Click and drag on the canvas"
-                : "Select a tool to start"}
+              Select a tool to start
             </p>
           </div>
         </div>
@@ -547,6 +806,12 @@ export default function FloorPlanCanvas() {
           Click anywhere on the canvas to place{" "}
           <span className="text-accent font-medium">{activeFurnitureTemplate.name}</span>
           {" "}({activeFurnitureTemplate.width.toFixed(1)}&times;{activeFurnitureTemplate.height.toFixed(1)}m)
+        </div>
+      )}
+
+      {activeTool === "measure" && measureStart && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-surface border border-border rounded-lg px-4 py-2 text-xs text-muted shadow-lg z-10">
+          Click the second point to finish measurement
         </div>
       )}
     </div>

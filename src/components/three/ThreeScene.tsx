@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useEditorStore } from "@/store/editor-store";
-import type { Wall, Opening, FurnitureItem } from "@/types/editor";
+import type { Wall, Opening, FurnitureItem, Column } from "@/types/editor";
 import { RotateCcw, Eye, Box, Maximize2, Minimize2 } from "lucide-react";
 
 const GRID_SIZE = 50;
@@ -75,7 +75,9 @@ function buildOpeningFrame(
       ? opening.height / 2
       : opening.sillHeight + opening.height / 2;
 
-  const color = opening.type === "door" ? 0xc4956a : 0x88bbdd;
+  const color = opening.type === "door" ? 0xc4956a
+    : opening.type === "sliding_door" ? 0x88aacc
+    : 0x88bbdd;
   const opacity = opening.type === "window" ? 0.4 : 1;
   const geom = new THREE.BoxGeometry(
     wall.thickness + 0.02,
@@ -146,36 +148,76 @@ function buildWallMeshes(
   return meshes;
 }
 
-const FURNITURE_COLORS: Record<string, number> = {
-  Sofa: 0xcc8899,
-  "Coffee Table": 0x886644,
-  "TV Stand": 0x444444,
-  "Double Bed": 0x99bbcc,
-  "Single Bed": 0x99bbcc,
-  Wardrobe: 0x8b6914,
-  Nightstand: 0x886644,
-  Sink: 0xcccccc,
-  Toilet: 0xeeeeee,
-  Bathtub: 0xcccccc,
-  "Dining Table": 0x886644,
-  Stove: 0x555555,
-  Fridge: 0xeeeeee,
+const FURNITURE_MATERIALS: Record<string, { color: number; roughness: number; metalness: number }> = {
+  "L-Shape Sofa": { color: 0x8899aa, roughness: 0.9, metalness: 0 },
+  "Armchair": { color: 0x8899aa, roughness: 0.9, metalness: 0 },
+  "Coffee Table": { color: 0x8b6f47, roughness: 0.5, metalness: 0.1 },
+  "TV Console": { color: 0x444444, roughness: 0.4, metalness: 0.2 },
+  "Bookshelf": { color: 0x7a5230, roughness: 0.6, metalness: 0 },
+  "King Bed": { color: 0xbb9977, roughness: 0.7, metalness: 0 },
+  "Queen Bed": { color: 0xbb9977, roughness: 0.7, metalness: 0 },
+  "Single Bed": { color: 0xccaa88, roughness: 0.7, metalness: 0 },
+  "Wardrobe": { color: 0x8b6914, roughness: 0.5, metalness: 0.05 },
+  "Nightstand": { color: 0x886644, roughness: 0.5, metalness: 0.05 },
+  "L-Counter": { color: 0xcccccc, roughness: 0.3, metalness: 0.1 },
+  "Kitchen Island": { color: 0xbbbbbb, roughness: 0.4, metalness: 0.1 },
+  "Fridge": { color: 0xeeeeee, roughness: 0.2, metalness: 0.4 },
+  "Gas Stove": { color: 0x555555, roughness: 0.6, metalness: 0.3 },
+  "Dining Table 6-Chair": { color: 0x8b6f47, roughness: 0.5, metalness: 0.1 },
+  "Bathtub": { color: 0xeeeeee, roughness: 0.1, metalness: 0.05 },
+  "Shower Cabin": { color: 0xccccdd, roughness: 0.1, metalness: 0.05 },
+  "Toilet": { color: 0xeeeeee, roughness: 0.2, metalness: 0.05 },
+  "Vanity Sink": { color: 0xffffff, roughness: 0.1, metalness: 0.05 },
+  "Straight Stairs": { color: 0x9a7a5a, roughness: 0.6, metalness: 0 },
+  "L-Shape Stairs": { color: 0x9a7a5a, roughness: 0.6, metalness: 0 },
+  "Car Garage": { color: 0x888888, roughness: 0.7, metalness: 0.1 },
 };
 
-function buildFurnitureMesh(item: FurnitureItem, wireframe: boolean): THREE.Mesh {
-  const color = FURNITURE_COLORS[item.name] || 0x888888;
-  const geom = new THREE.BoxGeometry(item.width, 0.6, item.height);
-  const mat = new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.6,
-    metalness: 0.05,
+function getFurnitureMaterial(item: FurnitureItem, wireframe: boolean): THREE.MeshStandardMaterial {
+  const mat = FURNITURE_MATERIALS[item.name] || { color: 0x888888, roughness: 0.6, metalness: 0.05 };
+  const categoryColors: Record<string, number> = {
+    "Living Room": 0x8899aa,
+    "Bedroom": 0xbb9977,
+    "Kitchen": 0xcccccc,
+    "Bathroom": 0xeeeeee,
+    "Architectural": 0x9a7a5a,
+  };
+  const finalColor = item.category && categoryColors[item.category]
+    ? categoryColors[item.category]
+    : mat.color;
+  return new THREE.MeshStandardMaterial({
+    color: finalColor,
+    roughness: mat.roughness,
+    metalness: mat.metalness,
     wireframe,
   });
+}
+
+function buildFurnitureMesh(item: FurnitureItem, wireframe: boolean): THREE.Mesh {
+  const geom = new THREE.BoxGeometry(item.width, 0.6, item.height);
+  const mat = getFurnitureMaterial(item, wireframe);
   const mesh = new THREE.Mesh(geom, mat);
   const x = item.x / GRID_SIZE;
   const z = item.y / GRID_SIZE;
-  mesh.position.set(x, 0.3, z);
+  mesh.position.set(x, 0.3 + item.elevation, z);
   mesh.rotation.y = (item.rotation * Math.PI) / 180;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function buildColumnMesh(col: Column, wireframe: boolean): THREE.Mesh {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x999999,
+    roughness: 0.5,
+    metalness: 0.1,
+    wireframe,
+  });
+  const geom = new THREE.BoxGeometry(col.width, col.height, col.depth);
+  const mesh = new THREE.Mesh(geom, mat);
+  const x = col.x / GRID_SIZE;
+  const z = col.y / GRID_SIZE;
+  mesh.position.set(x, col.height / 2, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
@@ -191,12 +233,14 @@ export default function ThreeScene() {
     controls: OrbitControls;
     wallGroup: THREE.Group;
     furnitureGroup: THREE.Group;
+    columnGroup: THREE.Group;
     ground: THREE.Mesh;
     gridHelper: THREE.GridHelper;
   } | null>(null);
 
   const walls = useEditorStore((s) => s.walls);
   const openings = useEditorStore((s) => s.openings);
+  const columns = useEditorStore((s) => s.columns);
   const furniture = useEditorStore((s) => s.furniture);
   const landWidth = useEditorStore((s) => s.landWidth);
   const landLength = useEditorStore((s) => s.landLength);
@@ -205,7 +249,6 @@ export default function ThreeScene() {
   const setIs3DFullscreen = useEditorStore((s) => s.setIs3DFullscreen);
   const setWireframeMode = useEditorStore((s) => s.setWireframeMode);
   const selectedWallId = useEditorStore((s) => s.selectedWallId);
-  const selectedOpeningId = useEditorStore((s) => s.selectedOpeningId);
 
   const resetView = useCallback(() => {
     const sd = sceneDataRef.current;
@@ -303,6 +346,8 @@ export default function ThreeScene() {
     scene.add(wallGroup);
     const furnitureGroup = new THREE.Group();
     scene.add(furnitureGroup);
+    const columnGroup = new THREE.Group();
+    scene.add(columnGroup);
 
     const handleResize = () => {
       const cw = container.clientWidth;
@@ -322,6 +367,7 @@ export default function ThreeScene() {
       controls,
       wallGroup,
       furnitureGroup,
+      columnGroup,
       ground,
       gridHelper,
     };
@@ -351,7 +397,7 @@ export default function ThreeScene() {
     const sd = sceneDataRef.current;
     if (!sd) return;
 
-    const { wallGroup, furnitureGroup, camera, controls, ground, gridHelper, renderer } = sd;
+    const { wallGroup, furnitureGroup, columnGroup, camera, controls, ground, gridHelper, renderer } = sd;
 
     const clearGroup = (group: THREE.Group) => {
       while (group.children.length > 0) {
@@ -370,6 +416,7 @@ export default function ThreeScene() {
 
     clearGroup(wallGroup);
     clearGroup(furnitureGroup);
+    clearGroup(columnGroup);
 
     const lcx = 1 + landWidth / 2;
     const lcz = 1 + landLength / 2;
@@ -410,6 +457,11 @@ export default function ThreeScene() {
       furnitureGroup.add(mesh);
     }
 
+    for (const col of columns) {
+      const mesh = buildColumnMesh(col, wireframeMode);
+      columnGroup.add(mesh);
+    }
+
     const dLight = sd.scene.children.find(
       (c) => c instanceof THREE.DirectionalLight && c.position.y > 10
     ) as THREE.DirectionalLight;
@@ -423,7 +475,7 @@ export default function ThreeScene() {
     }
 
     renderer.render(sd.scene, camera);
-  }, [walls, openings, furniture, wireframeMode, selectedWallId, selectedOpeningId, landWidth, landLength]);
+  }, [walls, openings, furniture, columns, wireframeMode, selectedWallId, landWidth, landLength]);
 
   return (
     <div ref={containerRef} className="relative flex-1 min-h-0">

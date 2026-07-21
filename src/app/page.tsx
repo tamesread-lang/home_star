@@ -21,6 +21,15 @@ export default function Home() {
         case "w":
           setActiveTool("wall");
           break;
+        case "t":
+          setActiveTool("label");
+          break;
+        case "m":
+          setActiveTool("measure");
+          break;
+        case "r":
+          setActiveTool("rotate");
+          break;
         case "e":
           setActiveTool("eraser");
           break;
