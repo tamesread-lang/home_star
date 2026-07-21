@@ -108,8 +108,8 @@ export default function ThreeScene() {
     wallMeshesRef.current = [];
 
     for (const wall of walls) {
-      const dx = wall.end.x - wall.start.x;
-      const dz = wall.end.y - wall.start.y;
+      const dx = wall.x2 - wall.x1;
+      const dz = wall.y2 - wall.y1;
       const length = Math.sqrt(dx * dx + dz * dz);
       if (length < 1) continue;
 
@@ -117,7 +117,7 @@ export default function ThreeScene() {
       const metersZ = dz / GRID_SIZE;
       const wallLength = Math.sqrt(metersX * metersX + metersZ * metersZ);
 
-      const geometry = new THREE.BoxGeometry(wall.width, wall.height, wallLength);
+      const geometry = new THREE.BoxGeometry(wall.thickness, wall.height, wallLength);
       const material = new THREE.MeshStandardMaterial({
         color: wall.id === useEditorStore.getState().selectedWallId ? 0x5a8cff : 0x4a7cff,
         roughness: 0.3,
@@ -128,8 +128,8 @@ export default function ThreeScene() {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      const midX = (wall.start.x + wall.end.x) / 2 / GRID_SIZE;
-      const midZ = (wall.start.y + wall.end.y) / 2 / GRID_SIZE;
+      const midX = (wall.x1 + wall.x2) / 2 / GRID_SIZE;
+      const midZ = (wall.y1 + wall.y2) / 2 / GRID_SIZE;
       mesh.position.set(midX, wall.height / 2, midZ);
 
       const angle = Math.atan2(metersX, metersZ);

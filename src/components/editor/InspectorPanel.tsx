@@ -2,57 +2,23 @@
 
 import { useEditorStore } from "@/store/editor-store";
 import { useMemo } from "react";
-
-const GRID_SIZE = 50;
+import { wallLengthMeters } from "@/types/editor";
 
 export default function InspectorPanel() {
   const walls = useEditorStore((s) => s.walls);
   const selectedWallId = useEditorStore((s) => s.selectedWallId);
+  const landWidth = useEditorStore((s) => s.landWidth);
+  const landLength = useEditorStore((s) => s.landLength);
+  const setLandWidth = useEditorStore((s) => s.setLandWidth);
+  const setLandLength = useEditorStore((s) => s.setLandLength);
+  const updateWall = useEditorStore((s) => s.updateWall);
 
   const selectedWall = useMemo(
     () => walls.find((w) => w.id === selectedWallId) ?? null,
     [walls, selectedWallId]
   );
 
-  const totalArea = useMemo(() => {
-    if (walls.length === 0) return 0;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const wall of walls) {
-      minX = Math.min(minX, wall.start.x, wall.end.x);
-      maxX = Math.max(maxX, wall.start.x, wall.end.x);
-      minY = Math.min(minY, wall.start.y, wall.end.y);
-      maxY = Math.max(maxY, wall.start.y, wall.end.y);
-    }
-    const widthM = ((maxX - minX) / GRID_SIZE);
-    const heightM = ((maxY - minY) / GRID_SIZE);
-    return (widthM * heightM).toFixed(2);
-  }, [walls]);
-
-  const landWidth = useMemo(() => {
-    if (walls.length === 0) return "12.00";
-    let minX = Infinity, maxX = -Infinity;
-    for (const wall of walls) {
-      minX = Math.min(minX, wall.start.x, wall.end.x);
-      maxX = Math.max(maxX, wall.start.x, wall.end.x);
-    }
-    return ((maxX - minX) / GRID_SIZE).toFixed(2);
-  }, [walls]);
-
-  const landLength = useMemo(() => {
-    if (walls.length === 0) return "10.00";
-    let minY = Infinity, maxY = -Infinity;
-    for (const wall of walls) {
-      minY = Math.min(minY, wall.start.y, wall.end.y);
-      maxY = Math.max(maxY, wall.start.y, wall.end.y);
-    }
-    return ((maxY - minY) / GRID_SIZE).toFixed(2);
-  }, [walls]);
-
-  function wallLength(wall: { start: { x: number; y: number }; end: { x: number; y: number } }): string {
-    const dx = wall.end.x - wall.start.x;
-    const dy = wall.end.y - wall.start.y;
-    return (Math.sqrt(dx * dx + dy * dy) / GRID_SIZE).toFixed(2);
-  }
+  const totalArea = (landWidth * landLength).toFixed(2);
 
   return (
     <aside className="w-60 border-l border-border bg-surface p-4 shrink-0 overflow-y-auto">
@@ -65,12 +31,28 @@ export default function InspectorPanel() {
           <h3 className="text-xs font-medium text-muted mb-2">Land Dimensions</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm text-muted">Width</label>
-              <span className="text-sm font-mono tabular-nums">{landWidth} m</span>
+              <label className="text-sm text-muted">Width (m)</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={0.5}
+                value={landWidth}
+                onChange={(e) => setLandWidth(Math.max(1, parseFloat(e.target.value) || 1))}
+                className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+              />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-sm text-muted">Length</label>
-              <span className="text-sm font-mono tabular-nums">{landLength} m</span>
+              <label className="text-sm text-muted">Length (m)</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={0.5}
+                value={landLength}
+                onChange={(e) => setLandLength(Math.max(1, parseFloat(e.target.value) || 1))}
+                className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+              />
             </div>
             <div className="w-full h-px bg-border" />
             <div className="flex items-center justify-between">
@@ -93,15 +75,41 @@ export default function InspectorPanel() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm text-muted">Length</label>
-                <span className="text-sm font-mono tabular-nums">{wallLength(selectedWall)} m</span>
+                <span className="text-sm font-mono tabular-nums">
+                  {wallLengthMeters(selectedWall, 50).toFixed(2)} m
+                </span>
               </div>
               <div className="flex items-center justify-between">
-                <label className="text-sm text-muted">Height</label>
-                <span className="text-sm font-mono tabular-nums">{selectedWall.height.toFixed(2)} m</span>
+                <label className="text-sm text-muted">Height (m)</label>
+                <input
+                  type="number"
+                  min={0.5}
+                  max={10}
+                  step={0.1}
+                  value={selectedWall.height}
+                  onChange={(e) =>
+                    updateWall(selectedWall.id, {
+                      height: Math.max(0.5, parseFloat(e.target.value) || 0.5),
+                    })
+                  }
+                  className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                />
               </div>
               <div className="flex items-center justify-between">
-                <label className="text-sm text-muted">Thickness</label>
-                <span className="text-sm font-mono tabular-nums">{selectedWall.width.toFixed(2)} m</span>
+                <label className="text-sm text-muted">Thickness (m)</label>
+                <input
+                  type="number"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={selectedWall.thickness}
+                  onChange={(e) =>
+                    updateWall(selectedWall.id, {
+                      thickness: Math.max(0.05, parseFloat(e.target.value) || 0.05),
+                    })
+                  }
+                  className="w-20 text-right text-sm font-mono tabular-nums bg-surface-alt border border-border rounded px-2 py-0.5 focus:outline-none focus:border-accent"
+                />
               </div>
             </div>
           </div>

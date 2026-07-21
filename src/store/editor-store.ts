@@ -20,10 +20,16 @@ export const useEditorStore = create<EditorStore>((set) => ({
   selectedWallId: null,
   history: [[]],
   historyIndex: 0,
+  landWidth: 12,
+  landLength: 10,
 
   setActiveTool: (tool) => set({ activeTool: tool }),
 
   toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
+
+  setLandWidth: (width) => set({ landWidth: width }),
+
+  setLandLength: (length) => set({ landLength: length }),
 
   addWall: (wall) =>
     set((s) => ({

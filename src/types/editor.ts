@@ -7,10 +7,18 @@ export interface Point {
 
 export interface Wall {
   id: string;
-  start: Point;
-  end: Point;
-  width: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  thickness: number;
   height: number;
+}
+
+export function wallLengthMeters(wall: Wall, gridSize: number): number {
+  const dx = wall.x2 - wall.x1;
+  const dy = wall.y2 - wall.y1;
+  return Math.sqrt(dx * dx + dy * dy) / gridSize;
 }
 
 export interface EditorState {
@@ -20,6 +28,8 @@ export interface EditorState {
   selectedWallId: string | null;
   history: Wall[][];
   historyIndex: number;
+  landWidth: number;
+  landLength: number;
 }
 
 export interface EditorActions {
@@ -32,4 +42,6 @@ export interface EditorActions {
   undo: () => void;
   redo: () => void;
   clearSelection: () => void;
+  setLandWidth: (width: number) => void;
+  setLandLength: (length: number) => void;
 }
