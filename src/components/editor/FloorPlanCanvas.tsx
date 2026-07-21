@@ -124,10 +124,7 @@ export default function FloorPlanCanvas() {
   const activeFurnitureTemplate = useEditorStore((s) => s.activeFurnitureTemplate);
 
   const addWall = useEditorStore((s) => s.addWall);
-  const addWalls = useEditorStore((s) => {
-    const add = s.addWall;
-    return (newWalls: Wall[]) => newWalls.forEach((w) => add(w));
-  });
+  const addWalls = useEditorStore((s) => s.addWalls);
   const deleteWall = useEditorStore((s) => s.deleteWall);
   const selectWall = useEditorStore((s) => s.selectWall);
   const selectOpening = useEditorStore((s) => s.selectOpening);

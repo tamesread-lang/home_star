@@ -86,6 +86,15 @@ export const useEditorStore = create<EditorStore>((set) => ({
       ...pushHistory({ ...s, walls: [...s.walls, wall] }),
     })),
 
+  addWalls: (newWalls) =>
+    set((s) => {
+      const updated = [...s.walls, ...newWalls];
+      return {
+        walls: updated,
+        ...pushHistory({ ...s, walls: updated }),
+      };
+    }),
+
   updateWall: (id, updates) =>
     set((s) => {
       const newWalls = s.walls.map((w) =>

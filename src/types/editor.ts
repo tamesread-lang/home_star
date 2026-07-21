@@ -271,6 +271,7 @@ export interface EditorActions {
   setColumnAlignMode: (mode: ColumnAlignMode) => void;
   setOffsetDistance: (dist: number) => void;
   addWall: (wall: Wall) => void;
+  addWalls: (walls: Wall[]) => void;
   updateWall: (id: string, updates: Partial<Wall>) => void;
   deleteWall: (id: string) => void;
   selectWall: (id: string | null) => void;
