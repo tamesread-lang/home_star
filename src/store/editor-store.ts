@@ -17,19 +17,31 @@ export const useEditorStore = create<EditorStore>((set) => ({
   activeTool: "select",
   gridVisible: true,
   walls: [],
+  openings: [],
   selectedWallId: null,
+  selectedOpeningId: null,
   history: [[]],
   historyIndex: 0,
   landWidth: 12,
   landLength: 10,
+  wallHeight: 3,
+  wireframeMode: false,
+  is3DFullscreen: false,
 
-  setActiveTool: (tool) => set({ activeTool: tool }),
+  setActiveTool: (tool) =>
+    set({ activeTool: tool, selectedWallId: null, selectedOpeningId: null }),
 
   toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
 
   setLandWidth: (width) => set({ landWidth: width }),
 
   setLandLength: (length) => set({ landLength: length }),
+
+  setWallHeight: (height) => set({ wallHeight: height }),
+
+  setWireframeMode: (mode) => set({ wireframeMode: mode }),
+
+  setIs3DFullscreen: (fullscreen) => set({ is3DFullscreen: fullscreen }),
 
   addWall: (wall) =>
     set((s) => ({
@@ -51,14 +63,43 @@ export const useEditorStore = create<EditorStore>((set) => ({
   deleteWall: (id) =>
     set((s) => {
       const newWalls = s.walls.filter((w) => w.id !== id);
+      const newOpenings = s.openings.filter((o) => o.wallId !== id);
       return {
         walls: newWalls,
+        openings: newOpenings,
         selectedWallId: s.selectedWallId === id ? null : s.selectedWallId,
+        selectedOpeningId:
+          s.selectedOpeningId &&
+          newOpenings.every((o) => o.id !== s.selectedOpeningId)
+            ? null
+            : s.selectedOpeningId,
         ...pushHistory({ ...s, walls: newWalls }),
       };
     }),
 
-  selectWall: (id) => set({ selectedWallId: id }),
+  selectWall: (id) => set({ selectedWallId: id, selectedOpeningId: null }),
+
+  addOpening: (opening) =>
+    set((s) => ({
+      openings: [...s.openings, opening],
+    })),
+
+  updateOpening: (id, updates) =>
+    set((s) => ({
+      openings: s.openings.map((o) =>
+        o.id === id ? { ...o, ...updates } : o
+      ),
+    })),
+
+  deleteOpening: (id) =>
+    set((s) => ({
+      openings: s.openings.filter((o) => o.id !== id),
+      selectedOpeningId:
+        s.selectedOpeningId === id ? null : s.selectedOpeningId,
+    })),
+
+  selectOpening: (id) =>
+    set({ selectedOpeningId: id, selectedWallId: null }),
 
   undo: () =>
     set((s) => {
@@ -80,5 +121,6 @@ export const useEditorStore = create<EditorStore>((set) => ({
       };
     }),
 
-  clearSelection: () => set({ selectedWallId: null }),
+  clearSelection: () =>
+    set({ selectedWallId: null, selectedOpeningId: null }),
 }));

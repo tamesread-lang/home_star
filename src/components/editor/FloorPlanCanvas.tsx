@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Stage, Layer, Line, Circle, Text, Group } from "react-konva";
+import { Stage, Layer, Line, Circle, Text, Group, Rect, Arc } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useEditorStore } from "@/store/editor-store";
-import type { Point, Wall } from "@/types/editor";
+import type { Point, Wall, Opening } from "@/types/editor";
+import { openingPositionOnWall } from "@/types/editor";
 
 const GRID_SIZE = 50;
 const SNAP_DISTANCE = 10;
@@ -32,10 +33,14 @@ function pointToSegmentDistance(p: Point, a: Point, b: Point): number {
   return distance(p, { x: cx, y: cy });
 }
 
-let wallIdCounter = 0;
+let idCounter = 0;
 function generateWallId(): string {
-  wallIdCounter += 1;
-  return `wall_${wallIdCounter}_${Date.now()}`;
+  idCounter += 1;
+  return `wall_${idCounter}_${Date.now()}`;
+}
+function generateOpeningId(): string {
+  idCounter += 1;
+  return `open_${idCounter}_${Date.now()}`;
 }
 
 export default function FloorPlanCanvas() {
@@ -46,15 +51,20 @@ export default function FloorPlanCanvas() {
   const isDrawingRef = useRef(false);
 
   const walls = useEditorStore((s) => s.walls);
+  const openings = useEditorStore((s) => s.openings);
   const activeTool = useEditorStore((s) => s.activeTool);
   const gridVisible = useEditorStore((s) => s.gridVisible);
   const selectedWallId = useEditorStore((s) => s.selectedWallId);
+  const selectedOpeningId = useEditorStore((s) => s.selectedOpeningId);
   const landWidth = useEditorStore((s) => s.landWidth);
   const landLength = useEditorStore((s) => s.landLength);
+  const wallHeight = useEditorStore((s) => s.wallHeight);
   const addWall = useEditorStore((s) => s.addWall);
   const deleteWall = useEditorStore((s) => s.deleteWall);
   const selectWall = useEditorStore((s) => s.selectWall);
+  const selectOpening = useEditorStore((s) => s.selectOpening);
   const clearSelection = useEditorStore((s) => s.clearSelection);
+  const addOpening = useEditorStore((s) => s.addOpening);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -141,7 +151,7 @@ export default function FloorPlanCanvas() {
               x2: snapped.x,
               y2: snapped.y,
               thickness: 0.15,
-              height: 3,
+              height: wallHeight,
             });
           }
           setDrawingStart(null);
@@ -155,6 +165,21 @@ export default function FloorPlanCanvas() {
         } else {
           clearSelection();
         }
+      } else if (activeTool === "door" || activeTool === "window") {
+        const clickedWall = getWallAtPoint(pos);
+        if (clickedWall) {
+          const t = openingPositionOnWall(clickedWall, pos.x, pos.y);
+          const isDoor = activeTool === "door";
+          addOpening({
+            id: generateOpeningId(),
+            wallId: clickedWall.id,
+            type: isDoor ? "door" : "window",
+            position: t,
+            width: isDoor ? 0.9 : 1.2,
+            height: isDoor ? 2.1 : 1.2,
+            sillHeight: isDoor ? 0 : 0.9,
+          });
+        }
       } else if (activeTool === "eraser") {
         const clickedWall = getWallAtPoint(pos);
         if (clickedWall) {
@@ -162,7 +187,7 @@ export default function FloorPlanCanvas() {
         }
       }
     },
-    [activeTool, drawingStart, getStagePos, snapPoint, addWall, selectWall, clearSelection, deleteWall, getWallAtPoint]
+    [activeTool, drawingStart, getStagePos, snapPoint, addWall, selectWall, clearSelection, deleteWall, getWallAtPoint, addOpening]
   );
 
   const handleMouseMove = useCallback(
@@ -187,14 +212,14 @@ export default function FloorPlanCanvas() {
           x2: snapped.x,
           y2: snapped.y,
           thickness: 0.15,
-          height: 3,
+          height: wallHeight,
         });
       }
       setDrawingStart(null);
       setDrawingEnd(null);
       isDrawingRef.current = false;
     }
-  }, [activeTool, drawingStart, drawingEnd, addWall]);
+  }, [activeTool, drawingStart, drawingEnd, addWall, wallHeight]);
 
   const landBoundX = GRID_SIZE;
   const landBoundY = GRID_SIZE;
@@ -328,6 +353,78 @@ export default function FloorPlanCanvas() {
                       y={wall.y2}
                       radius={5}
                       fill="#4a7cff"
+                    />
+                  </>
+                )}
+              </Group>
+            );
+          })}
+        </Layer>
+
+        <Layer>
+          {openings.map((opening) => {
+            const parentWall = walls.find((w) => w.id === opening.wallId);
+            if (!parentWall) return null;
+            const px = parentWall.x1 + opening.position * (parentWall.x2 - parentWall.x1);
+            const py = parentWall.y1 + opening.position * (parentWall.y2 - parentWall.y1);
+            const dx = parentWall.x2 - parentWall.x1;
+            const dy = parentWall.y2 - parentWall.y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 1) return null;
+            const nx = -dy / len;
+            const ny = dx / len;
+            const halfW = (opening.width * GRID_SIZE) / 2;
+            const perpLen = opening.type === "door" ? 15 : 10;
+            const isSelected = opening.id === selectedOpeningId;
+            const color = isSelected ? "#4a7cff" : opening.type === "door" ? "#e8a87c" : "#7cc8e8";
+
+            return (
+              <Group key={opening.id}>
+                {opening.type === "door" ? (
+                  <>
+                    <Line
+                      points={[
+                        px - halfW * (dx / len), py - halfW * (dy / len),
+                        px + halfW * (dx / len), py + halfW * (dy / len),
+                      ]}
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                    <Line
+                      points={[
+                        px + halfW * (dx / len), py + halfW * (dy / len),
+                        px + halfW * (dx / len) + nx * perpLen,
+                        py + halfW * (dy / len) + ny * perpLen,
+                      ]}
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Line
+                      points={[
+                        px - halfW * (dx / len) + nx * 3, py - halfW * (dy / len) + ny * 3,
+                        px + halfW * (dx / len) + nx * 3, py + halfW * (dy / len) + ny * 3,
+                      ]}
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                    <Line
+                      points={[
+                        px - halfW * (dx / len) + nx * 3, py - halfW * (dy / len) + ny * 3,
+                        px - halfW * (dx / len) + nx * 8, py - halfW * (dy / len) + ny * 8,
+                      ]}
+                      stroke={color}
+                      strokeWidth={1}
+                    />
+                    <Line
+                      points={[
+                        px + halfW * (dx / len) + nx * 3, py + halfW * (dy / len) + ny * 3,
+                        px + halfW * (dx / len) + nx * 8, py + halfW * (dy / len) + ny * 8,
+                      ]}
+                      stroke={color}
+                      strokeWidth={1}
                     />
                   </>
                 )}

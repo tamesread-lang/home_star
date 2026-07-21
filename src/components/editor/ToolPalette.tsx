@@ -1,6 +1,6 @@
 "use client";
 
-import { MousePointer2, Eraser, Pencil, Ruler, Grid3X3 } from "lucide-react";
+import { MousePointer2, Eraser, Pencil, Ruler, Grid3X3, DoorOpen, Scan } from "lucide-react";
 import IconButton from "@/components/ui/IconButton";
 import { useEditorStore } from "@/store/editor-store";
 import type { Tool } from "@/types/editor";
@@ -8,6 +8,8 @@ import type { Tool } from "@/types/editor";
 const tools: { id: Tool; icon: typeof MousePointer2; label: string }[] = [
   { id: "select", icon: MousePointer2, label: "Select (V)" },
   { id: "wall", icon: Pencil, label: "Wall (W)" },
+  { id: "door", icon: DoorOpen, label: "Door" },
+  { id: "window", icon: Scan, label: "Window" },
   { id: "eraser", icon: Eraser, label: "Eraser (E)" },
   { id: "dimension", icon: Ruler, label: "Dimension (D)" },
 ];
