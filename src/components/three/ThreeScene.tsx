@@ -1,44 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useEditorStore } from "@/store/editor-store";
 import type { Wall, Opening, FurnitureItem, Column } from "@/types/editor";
+import { computeCleanEndpoints } from "@/types/editor";
 import { RotateCcw, Eye, Box, Maximize2, Minimize2 } from "lucide-react";
 
 const GRID_SIZE = 50;
 
-function wallInMeters(wall: Wall) {
-  const x1 = wall.x1 / GRID_SIZE;
-  const y1 = wall.y1 / GRID_SIZE;
-  const x2 = wall.x2 / GRID_SIZE;
-  const y2 = wall.y2 / GRID_SIZE;
+function wallInMeters(wall: Wall, cx1: number, cy1: number, cx2: number, cy2: number) {
+  const x1 = cx1 / GRID_SIZE;
+  const y1 = cy1 / GRID_SIZE;
+  const x2 = cx2 / GRID_SIZE;
+  const y2 = cy2 / GRID_SIZE;
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.sqrt(dx * dx + dy * dy);
   return { x1, y1, x2, y2, dx, dy, len, angle: Math.atan2(dx, dy) };
 }
 
-function createWallMaterial(color: number, wireframe: boolean) {
-  return new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.7,
-    metalness: 0.0,
-    wireframe,
-  });
-}
-
 function buildWallSegment(
   wall: Wall,
-  offsetStartM: number,
-  offsetEndM: number,
-  heightBottom: number,
-  heightTop: number,
-  isSelected: boolean,
-  wireframe: boolean
+  cx1: number, cy1: number, cx2: number, cy2: number,
+  offsetStartM: number, offsetEndM: number,
+  heightBottom: number, heightTop: number,
+  isSelected: boolean, wireframe: boolean
 ): THREE.Mesh | null {
-  const wm = wallInMeters(wall);
+  const wm = wallInMeters(wall, cx1, cy1, cx2, cy2);
+  if (wm.len < 0.005) return null;
   const segLenM = offsetEndM - offsetStartM;
   const segHeight = heightTop - heightBottom;
   if (segLenM < 0.005 || segHeight < 0.005) return null;
@@ -51,7 +42,7 @@ function buildWallSegment(
   const color = isSelected ? 0x4a7cff : baseColor;
 
   const geom = new THREE.BoxGeometry(wall.thickness, segHeight, segLenM);
-  const mat = createWallMaterial(color, wireframe);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.0, wireframe });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.set(cx, heightBottom + segHeight / 2, cz);
   mesh.rotation.y = wm.angle;
@@ -61,37 +52,20 @@ function buildWallSegment(
 }
 
 function buildOpeningFrame(
-  wall: Wall,
-  opening: Opening,
-  wireframe: boolean
+  wall: Wall, cx1: number, cy1: number, cx2: number, cy2: number,
+  opening: Opening, wireframe: boolean
 ): THREE.Mesh | null {
-  const wm = wallInMeters(wall);
+  const wm = wallInMeters(wall, cx1, cy1, cx2, cy2);
   if (wm.len < 0.01) return null;
 
   const cx = wm.x1 + opening.position * wm.dx;
   const cz = wm.y1 + opening.position * wm.dy;
-  const yPos =
-    opening.type === "door"
-      ? opening.height / 2
-      : opening.sillHeight + opening.height / 2;
+  const yPos = opening.type === "door" ? opening.height / 2 : opening.sillHeight + opening.height / 2;
 
-  const color = opening.type === "door" ? 0xc4956a
-    : opening.type === "sliding_door" ? 0x88aacc
-    : 0x88bbdd;
+  const color = opening.type === "door" ? 0xc4956a : opening.type === "sliding_door" ? 0x88aacc : 0x88bbdd;
   const opacity = opening.type === "window" ? 0.4 : 1;
-  const geom = new THREE.BoxGeometry(
-    wall.thickness + 0.02,
-    opening.height,
-    opening.width
-  );
-  const mat = new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.5,
-    metalness: 0.05,
-    transparent: opacity < 1,
-    opacity,
-    wireframe,
-  });
+  const geom = new THREE.BoxGeometry(wall.thickness + 0.02, opening.height, opening.width);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.05, transparent: opacity < 1, opacity, wireframe });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.set(cx, yPos, cz);
   mesh.rotation.y = wm.angle;
@@ -101,50 +75,43 @@ function buildOpeningFrame(
 }
 
 function buildWallMeshes(
-  wall: Wall,
-  wallOpenings: Opening[],
-  wireframe: boolean,
-  selectedWallId: string | null
+  wall: Wall, cx1: number, cy1: number, cx2: number, cy2: number,
+  wallOpenings: Opening[], wireframe: boolean, selectedWallId: string | null
 ): THREE.Object3D[] {
   const meshes: THREE.Object3D[] = [];
-  const wm = wallInMeters(wall);
+  const wm = wallInMeters(wall, cx1, cy1, cx2, cy2);
   if (wm.len < 0.005) return meshes;
-
   const isSelected = wall.id === selectedWallId;
 
   if (wallOpenings.length === 0) {
-    const m = buildWallSegment(wall, 0, wm.len, 0, wall.height, isSelected, wireframe);
+    const m = buildWallSegment(wall, cx1, cy1, cx2, cy2, 0, wm.len, 0, wall.height, isSelected, wireframe);
     if (m) meshes.push(m);
     return meshes;
   }
 
   const sorted = [...wallOpenings].sort((a, b) => a.position - b.position);
   let prevEnd = 0;
-
   for (const op of sorted) {
     const opCenter = op.position * wm.len;
     const opHalf = op.width / 2;
     const opStart = Math.max(0, opCenter - opHalf);
     const opEnd = Math.min(wm.len, opCenter + opHalf);
-
     if (opStart > prevEnd + 0.005) {
-      const m = buildWallSegment(wall, prevEnd, opStart, 0, wall.height, isSelected, wireframe);
+      const m = buildWallSegment(wall, cx1, cy1, cx2, cy2, prevEnd, opStart, 0, wall.height, isSelected, wireframe);
       if (m) meshes.push(m);
     }
     if (op.height < wall.height && opEnd > opStart + 0.005) {
-      const m = buildWallSegment(wall, opStart, opEnd, op.height, wall.height, isSelected, wireframe);
+      const m = buildWallSegment(wall, cx1, cy1, cx2, cy2, opStart, opEnd, op.height, wall.height, isSelected, wireframe);
       if (m) meshes.push(m);
     }
-    const frame = buildOpeningFrame(wall, op, wireframe);
+    const frame = buildOpeningFrame(wall, cx1, cy1, cx2, cy2, op, wireframe);
     if (frame) meshes.push(frame);
     prevEnd = opEnd;
   }
-
   if (prevEnd < wm.len - 0.005) {
-    const m = buildWallSegment(wall, prevEnd, wm.len, 0, wall.height, isSelected, wireframe);
+    const m = buildWallSegment(wall, cx1, cy1, cx2, cy2, prevEnd, wm.len, 0, wall.height, isSelected, wireframe);
     if (m) meshes.push(m);
   }
-
   return meshes;
 }
 
@@ -176,30 +143,17 @@ const FURNITURE_MATERIALS: Record<string, { color: number; roughness: number; me
 function getFurnitureMaterial(item: FurnitureItem, wireframe: boolean): THREE.MeshStandardMaterial {
   const mat = FURNITURE_MATERIALS[item.name] || { color: 0x888888, roughness: 0.6, metalness: 0.05 };
   const categoryColors: Record<string, number> = {
-    "Living Room": 0x8899aa,
-    "Bedroom": 0xbb9977,
-    "Kitchen": 0xcccccc,
-    "Bathroom": 0xeeeeee,
-    "Architectural": 0x9a7a5a,
+    "Living Room": 0x8899aa, "Bedroom": 0xbb9977, "Kitchen": 0xcccccc, "Bathroom": 0xeeeeee, "Architectural": 0x9a7a5a,
   };
-  const finalColor = item.category && categoryColors[item.category]
-    ? categoryColors[item.category]
-    : mat.color;
-  return new THREE.MeshStandardMaterial({
-    color: finalColor,
-    roughness: mat.roughness,
-    metalness: mat.metalness,
-    wireframe,
-  });
+  const finalColor = item.category && categoryColors[item.category] ? categoryColors[item.category] : mat.color;
+  return new THREE.MeshStandardMaterial({ color: finalColor, roughness: mat.roughness, metalness: mat.metalness, wireframe });
 }
 
 function buildFurnitureMesh(item: FurnitureItem, wireframe: boolean): THREE.Mesh {
   const geom = new THREE.BoxGeometry(item.width, 0.6, item.height);
   const mat = getFurnitureMaterial(item, wireframe);
   const mesh = new THREE.Mesh(geom, mat);
-  const x = item.x / GRID_SIZE;
-  const z = item.y / GRID_SIZE;
-  mesh.position.set(x, 0.3 + item.elevation, z);
+  mesh.position.set(item.x / GRID_SIZE, 0.3 + item.elevation, item.y / GRID_SIZE);
   mesh.rotation.y = (item.rotation * Math.PI) / 180;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -207,17 +161,10 @@ function buildFurnitureMesh(item: FurnitureItem, wireframe: boolean): THREE.Mesh
 }
 
 function buildColumnMesh(col: Column, wireframe: boolean): THREE.Mesh {
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x999999,
-    roughness: 0.5,
-    metalness: 0.1,
-    wireframe,
-  });
+  const mat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.5, metalness: 0.1, wireframe });
   const geom = new THREE.BoxGeometry(col.width, col.height, col.depth);
   const mesh = new THREE.Mesh(geom, mat);
-  const x = col.x / GRID_SIZE;
-  const z = col.y / GRID_SIZE;
-  mesh.position.set(x, col.height / 2, z);
+  mesh.position.set(col.x / GRID_SIZE, col.height / 2, col.y / GRID_SIZE);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
@@ -227,15 +174,9 @@ export default function ThreeScene() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sceneReady, setSceneReady] = useState(false);
   const sceneDataRef = useRef<{
-    scene: THREE.Scene;
-    camera: THREE.PerspectiveCamera;
-    renderer: THREE.WebGLRenderer;
-    controls: OrbitControls;
-    wallGroup: THREE.Group;
-    furnitureGroup: THREE.Group;
-    columnGroup: THREE.Group;
-    ground: THREE.Mesh;
-    gridHelper: THREE.GridHelper;
+    scene: THREE.Scene; camera: THREE.PerspectiveCamera; renderer: THREE.WebGLRenderer;
+    controls: OrbitControls; wallGroup: THREE.Group; furnitureGroup: THREE.Group;
+    columnGroup: THREE.Group; ground: THREE.Mesh; gridHelper: THREE.GridHelper;
   } | null>(null);
 
   const walls = useEditorStore((s) => s.walls);
@@ -249,6 +190,8 @@ export default function ThreeScene() {
   const setIs3DFullscreen = useEditorStore((s) => s.setIs3DFullscreen);
   const setWireframeMode = useEditorStore((s) => s.setWireframeMode);
   const selectedWallId = useEditorStore((s) => s.selectedWallId);
+
+  const cleanEndpoints = useMemo(() => computeCleanEndpoints(walls), [walls]);
 
   const resetView = useCallback(() => {
     const sd = sceneDataRef.current;
@@ -271,27 +214,19 @@ export default function ThreeScene() {
     sd.controls.update();
   }, [landWidth, landLength]);
 
-  const toggleWireframe = useCallback(() => {
-    setWireframeMode(!wireframeMode);
-  }, [wireframeMode, setWireframeMode]);
-
-  const toggleFullscreen = useCallback(() => {
-    setIs3DFullscreen(!is3DFullscreen);
-  }, [is3DFullscreen, setIs3DFullscreen]);
+  const toggleWireframe = useCallback(() => setWireframeMode(!wireframeMode), [wireframeMode, setWireframeMode]);
+  const toggleFullscreen = useCallback(() => setIs3DFullscreen(!is3DFullscreen), [is3DFullscreen, setIs3DFullscreen]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
     const w = container.clientWidth;
     const h = container.clientHeight;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111122);
-
     const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
-    const lcx = 1 + 12 / 2;
-    const lcz = 1 + 10 / 2;
+    const lcx = 1 + 12 / 2, lcz = 1 + 10 / 2;
     camera.position.set(lcx + 8, 8, lcz + 10);
     camera.lookAt(lcx, 0, lcz);
 
@@ -310,7 +245,6 @@ export default function ThreeScene() {
 
     const ambientLight = new THREE.AmbientLight(0x8888cc, 0.4);
     scene.add(ambientLight);
-
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
     dirLight.position.set(lcx + 10, 15, lcz + 8);
     dirLight.castShadow = true;
@@ -320,18 +254,12 @@ export default function ThreeScene() {
     dirLight.shadow.camera.top = 15;
     dirLight.shadow.camera.bottom = -15;
     scene.add(dirLight);
-
     const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
     fillLight.position.set(lcx - 5, 5, lcz - 5);
     scene.add(fillLight);
 
     const groundGeom = new THREE.PlaneGeometry(20, 20);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a2e,
-      side: THREE.DoubleSide,
-      roughness: 0.9,
-      metalness: 0.0,
-    });
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, side: THREE.DoubleSide, roughness: 0.9, metalness: 0.0 });
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(lcx, -0.01, lcz);
@@ -349,37 +277,19 @@ export default function ThreeScene() {
     const columnGroup = new THREE.Group();
     scene.add(columnGroup);
 
-    const handleResize = () => {
-      const cw = container.clientWidth;
-      const ch = container.clientHeight;
+    const resizeObserver = new ResizeObserver(() => {
+      const cw = container.clientWidth, ch = container.clientHeight;
       camera.aspect = cw / ch;
       camera.updateProjectionMatrix();
       renderer.setSize(cw, ch);
-    };
-
-    const resizeObserver = new ResizeObserver(handleResize);
+    });
     resizeObserver.observe(container);
 
-    sceneDataRef.current = {
-      scene,
-      camera,
-      renderer,
-      controls,
-      wallGroup,
-      furnitureGroup,
-      columnGroup,
-      ground,
-      gridHelper,
-    };
-
+    sceneDataRef.current = { scene, camera, renderer, controls, wallGroup, furnitureGroup, columnGroup, ground, gridHelper };
     setSceneReady(true);
 
     let animFrameId: number;
-    const animate = () => {
-      controls.update();
-      renderer.render(scene, camera);
-      animFrameId = requestAnimationFrame(animate);
-    };
+    const animate = () => { controls.update(); renderer.render(scene, camera); animFrameId = requestAnimationFrame(animate); };
     animFrameId = requestAnimationFrame(animate);
 
     return () => {
@@ -396,30 +306,20 @@ export default function ThreeScene() {
   useEffect(() => {
     const sd = sceneDataRef.current;
     if (!sd) return;
-
     const { wallGroup, furnitureGroup, columnGroup, camera, controls, ground, gridHelper, renderer } = sd;
 
     const clearGroup = (group: THREE.Group) => {
       while (group.children.length > 0) {
         const child = group.children[0];
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (Array.isArray(child.material)) {
-            child.material.forEach((m) => m.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
+        if (child instanceof THREE.Mesh) { child.geometry.dispose(); if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose()); else child.material.dispose(); }
         group.remove(child);
       }
     };
-
     clearGroup(wallGroup);
     clearGroup(furnitureGroup);
     clearGroup(columnGroup);
 
-    const lcx = 1 + landWidth / 2;
-    const lcz = 1 + landLength / 2;
+    const lcx = 1 + landWidth / 2, lcz = 1 + landLength / 2;
     const gs = Math.max(landWidth, landLength) + 4;
 
     ground.geometry.dispose();
@@ -447,8 +347,11 @@ export default function ThreeScene() {
     }
 
     for (const wall of walls) {
+      const ep = cleanEndpoints.get(wall.id);
+      const cx1 = ep?.x1 ?? wall.x1, cy1 = ep?.y1 ?? wall.y1;
+      const cx2 = ep?.x2 ?? wall.x2, cy2 = ep?.y2 ?? wall.y2;
       const wallOpenings = openingsByWall.get(wall.id) || [];
-      const meshes = buildWallMeshes(wall, wallOpenings, wireframeMode, selectedWallId);
+      const meshes = buildWallMeshes(wall, cx1, cy1, cx2, cy2, wallOpenings, wireframeMode, selectedWallId);
       for (const m of meshes) wallGroup.add(m);
     }
 
@@ -475,44 +378,16 @@ export default function ThreeScene() {
     }
 
     renderer.render(sd.scene, camera);
-  }, [walls, openings, furniture, columns, wireframeMode, selectedWallId, landWidth, landLength]);
+  }, [walls, openings, furniture, columns, wireframeMode, selectedWallId, landWidth, landLength, cleanEndpoints]);
 
   return (
     <div ref={containerRef} className="relative flex-1 min-h-0">
       {sceneReady && (
         <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
-          <button
-            onClick={resetView}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-black/50 text-muted hover:text-foreground hover:bg-black/70 transition-colors"
-            title="Reset View"
-          >
-            <RotateCcw size={15} />
-          </button>
-          <button
-            onClick={topView}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-black/50 text-muted hover:text-foreground hover:bg-black/70 transition-colors"
-            title="Top View"
-          >
-            <Eye size={15} />
-          </button>
-          <button
-            onClick={toggleWireframe}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-              wireframeMode
-                ? "bg-accent text-white"
-                : "bg-black/50 text-muted hover:text-foreground hover:bg-black/70"
-            }`}
-            title="Toggle Wireframe"
-          >
-            <Box size={15} />
-          </button>
-          <button
-            onClick={toggleFullscreen}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-black/50 text-muted hover:text-foreground hover:bg-black/70 transition-colors"
-            title={is3DFullscreen ? "Split View" : "Fullscreen 3D"}
-          >
-            {is3DFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          </button>
+          <button onClick={resetView} className="w-8 h-8 flex items-center justify-center rounded-lg bg-black/50 text-muted hover:text-foreground hover:bg-black/70 transition-colors" title="Reset View"><RotateCcw size={15} /></button>
+          <button onClick={topView} className="w-8 h-8 flex items-center justify-center rounded-lg bg-black/50 text-muted hover:text-foreground hover:bg-black/70 transition-colors" title="Top View"><Eye size={15} /></button>
+          <button onClick={toggleWireframe} className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${wireframeMode ? "bg-accent text-white" : "bg-black/50 text-muted hover:text-foreground hover:bg-black/70"}`} title="Toggle Wireframe"><Box size={15} /></button>
+          <button onClick={toggleFullscreen} className="w-8 h-8 flex items-center justify-center rounded-lg bg-black/50 text-muted hover:text-foreground hover:bg-black/70 transition-colors" title={is3DFullscreen ? "Split View" : "Fullscreen 3D"}>{is3DFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@
 import {
   MousePointer2, Eraser, Pencil, Square, Columns3,
   DoorOpen, Scan, Type, Ruler, RotateCw, Armchair, Grid3x3,
-  SlidersHorizontal,
+  SlidersHorizontal, Copy, Scissors, GitFork, Droplet,
 } from "lucide-react";
 import IconButton from "@/components/ui/IconButton";
 import { useEditorStore } from "@/store/editor-store";
@@ -23,6 +23,13 @@ const tools: { id: Tool; icon: typeof MousePointer2; label: string }[] = [
   { id: "eraser", icon: Eraser, label: "Eraser (E)" },
 ];
 
+const actionTools: { id: Tool; icon: typeof MousePointer2; label: string }[] = [
+  { id: "mirror", icon: Copy, label: "Mirror" },
+  { id: "trim", icon: Scissors, label: "Trim/Cut" },
+  { id: "offset", icon: GitFork, label: "Offset" },
+  { id: "fill", icon: Droplet, label: "Room Fill" },
+];
+
 export default function ToolPalette() {
   const activeTool = useEditorStore((s) => s.activeTool);
   const gridVisible = useEditorStore((s) => s.gridVisible);
@@ -38,6 +45,21 @@ export default function ToolPalette() {
   return (
     <aside className="flex flex-col items-center gap-2 w-14 py-3 border-r border-border bg-surface shrink-0 overflow-y-auto">
       {tools.map((tool) => (
+        <IconButton
+          key={tool.id}
+          icon={tool.icon}
+          label={tool.label}
+          active={activeTool === tool.id}
+          onClick={() => {
+            setActiveFurnitureTemplate(null);
+            setActiveTool(tool.id);
+          }}
+        />
+      ))}
+
+      <div className="w-8 h-px bg-border my-1" />
+
+      {actionTools.map((tool) => (
         <IconButton
           key={tool.id}
           icon={tool.icon}

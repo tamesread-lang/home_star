@@ -17,11 +17,15 @@ export const useEditorStore = create<EditorStore>((set) => ({
   activeTool: "select",
   gridVisible: true,
   snapSize: 25,
+  wallAlignment: "center",
+  columnAlignMode: "none",
+  offsetDistance: 0.2,
   walls: [],
   openings: [],
   columns: [],
   labels: [],
   measureLines: [],
+  floorFills: [],
   furniture: [],
   selectedWallId: null,
   selectedOpeningId: null,
@@ -52,6 +56,12 @@ export const useEditorStore = create<EditorStore>((set) => ({
   toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
 
   setSnapSize: (size) => set({ snapSize: size }),
+
+  setWallAlignment: (align) => set({ wallAlignment: align }),
+
+  setColumnAlignMode: (mode) => set({ columnAlignMode: mode }),
+
+  setOffsetDistance: (dist) => set({ offsetDistance: dist }),
 
   setLandWidth: (width) => set({ landWidth: width }),
 
@@ -204,6 +214,23 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   clearMeasureLines: () =>
     set({ measureLines: [] }),
+
+  addFloorFill: (fill) =>
+    set((s) => ({
+      floorFills: [...s.floorFills, fill],
+    })),
+
+  updateFloorFill: (id, updates) =>
+    set((s) => ({
+      floorFills: s.floorFills.map((f) =>
+        f.id === id ? { ...f, ...updates } : f
+      ),
+    })),
+
+  deleteFloorFill: (id) =>
+    set((s) => ({
+      floorFills: s.floorFills.filter((f) => f.id !== id),
+    })),
 
   addFurniture: (item) =>
     set((s) => ({
