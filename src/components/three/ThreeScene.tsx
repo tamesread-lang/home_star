@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useEditorStore } from "@/store/editor-store";
-import type { Wall, Opening } from "@/types/editor";
+import type { Wall, Opening, FurnitureItem } from "@/types/editor";
 import { RotateCcw, Eye, Box, Maximize2, Minimize2 } from "lucide-react";
 
 const GRID_SIZE = 50;
@@ -47,8 +47,11 @@ function buildWallSegment(
   const cx = wm.x1 + centerFrac * wm.dx;
   const cz = wm.y1 + centerFrac * wm.dy;
 
+  const baseColor = wall.wallType === "exterior" ? 0xe8e8e0 : 0xf0f0e8;
+  const color = isSelected ? 0x4a7cff : baseColor;
+
   const geom = new THREE.BoxGeometry(wall.thickness, segHeight, segLenM);
-  const mat = createWallMaterial(isSelected ? 0x4a7cff : 0xf0f0e8, wireframe);
+  const mat = createWallMaterial(color, wireframe);
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.set(cx, heightBottom + segHeight / 2, cz);
   mesh.rotation.y = wm.angle;
@@ -65,10 +68,8 @@ function buildOpeningFrame(
   const wm = wallInMeters(wall);
   if (wm.len < 0.01) return null;
 
-  const centerFrac = opening.position;
-  const cx = wm.x1 + centerFrac * wm.dx;
-  const cz = wm.y1 + centerFrac * wm.dy;
-
+  const cx = wm.x1 + opening.position * wm.dx;
+  const cz = wm.y1 + opening.position * wm.dy;
   const yPos =
     opening.type === "door"
       ? opening.height / 2
@@ -128,15 +129,12 @@ function buildWallMeshes(
       const m = buildWallSegment(wall, prevEnd, opStart, 0, wall.height, isSelected, wireframe);
       if (m) meshes.push(m);
     }
-
     if (op.height < wall.height && opEnd > opStart + 0.005) {
       const m = buildWallSegment(wall, opStart, opEnd, op.height, wall.height, isSelected, wireframe);
       if (m) meshes.push(m);
     }
-
     const frame = buildOpeningFrame(wall, op, wireframe);
     if (frame) meshes.push(frame);
-
     prevEnd = opEnd;
   }
 
@@ -148,6 +146,41 @@ function buildWallMeshes(
   return meshes;
 }
 
+const FURNITURE_COLORS: Record<string, number> = {
+  Sofa: 0xcc8899,
+  "Coffee Table": 0x886644,
+  "TV Stand": 0x444444,
+  "Double Bed": 0x99bbcc,
+  "Single Bed": 0x99bbcc,
+  Wardrobe: 0x8b6914,
+  Nightstand: 0x886644,
+  Sink: 0xcccccc,
+  Toilet: 0xeeeeee,
+  Bathtub: 0xcccccc,
+  "Dining Table": 0x886644,
+  Stove: 0x555555,
+  Fridge: 0xeeeeee,
+};
+
+function buildFurnitureMesh(item: FurnitureItem, wireframe: boolean): THREE.Mesh {
+  const color = FURNITURE_COLORS[item.name] || 0x888888;
+  const geom = new THREE.BoxGeometry(item.width, 0.6, item.height);
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.6,
+    metalness: 0.05,
+    wireframe,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  const x = item.x / GRID_SIZE;
+  const z = item.y / GRID_SIZE;
+  mesh.position.set(x, 0.3, z);
+  mesh.rotation.y = (item.rotation * Math.PI) / 180;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 export default function ThreeScene() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sceneReady, setSceneReady] = useState(false);
@@ -157,12 +190,14 @@ export default function ThreeScene() {
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
     wallGroup: THREE.Group;
+    furnitureGroup: THREE.Group;
     ground: THREE.Mesh;
     gridHelper: THREE.GridHelper;
   } | null>(null);
 
   const walls = useEditorStore((s) => s.walls);
   const openings = useEditorStore((s) => s.openings);
+  const furniture = useEditorStore((s) => s.furniture);
   const landWidth = useEditorStore((s) => s.landWidth);
   const landLength = useEditorStore((s) => s.landLength);
   const wireframeMode = useEditorStore((s) => s.wireframeMode);
@@ -266,6 +301,8 @@ export default function ThreeScene() {
 
     const wallGroup = new THREE.Group();
     scene.add(wallGroup);
+    const furnitureGroup = new THREE.Group();
+    scene.add(furnitureGroup);
 
     const handleResize = () => {
       const cw = container.clientWidth;
@@ -284,6 +321,7 @@ export default function ThreeScene() {
       renderer,
       controls,
       wallGroup,
+      furnitureGroup,
       ground,
       gridHelper,
     };
@@ -313,25 +351,30 @@ export default function ThreeScene() {
     const sd = sceneDataRef.current;
     if (!sd) return;
 
-    const { wallGroup, camera, controls, ground, gridHelper, renderer } = sd;
+    const { wallGroup, furnitureGroup, camera, controls, ground, gridHelper, renderer } = sd;
 
-    while (wallGroup.children.length > 0) {
-      const child = wallGroup.children[0];
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m) => m.dispose());
-        } else {
-          child.material.dispose();
+    const clearGroup = (group: THREE.Group) => {
+      while (group.children.length > 0) {
+        const child = group.children[0];
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
         }
+        group.remove(child);
       }
-      wallGroup.remove(child);
-    }
+    };
+
+    clearGroup(wallGroup);
+    clearGroup(furnitureGroup);
 
     const lcx = 1 + landWidth / 2;
     const lcz = 1 + landLength / 2;
-
     const gs = Math.max(landWidth, landLength) + 4;
+
     ground.geometry.dispose();
     ground.geometry = new THREE.PlaneGeometry(gs, gs);
     ground.position.set(lcx, -0.01, lcz);
@@ -344,7 +387,6 @@ export default function ThreeScene() {
     sd.scene.add(newGrid);
 
     controls.target.set(lcx, 0, lcz);
-
     if (Math.abs(camera.position.x - lcx) > 50 || Math.abs(camera.position.z - lcz) > 50) {
       camera.position.set(lcx + gs * 0.4, gs * 0.3, lcz + gs * 0.5);
     }
@@ -360,9 +402,12 @@ export default function ThreeScene() {
     for (const wall of walls) {
       const wallOpenings = openingsByWall.get(wall.id) || [];
       const meshes = buildWallMeshes(wall, wallOpenings, wireframeMode, selectedWallId);
-      for (const m of meshes) {
-        wallGroup.add(m);
-      }
+      for (const m of meshes) wallGroup.add(m);
+    }
+
+    for (const item of furniture) {
+      const mesh = buildFurnitureMesh(item, wireframeMode);
+      furnitureGroup.add(mesh);
     }
 
     const dLight = sd.scene.children.find(
@@ -378,7 +423,7 @@ export default function ThreeScene() {
     }
 
     renderer.render(sd.scene, camera);
-  }, [walls, openings, wireframeMode, selectedWallId, selectedOpeningId, landWidth, landLength]);
+  }, [walls, openings, furniture, wireframeMode, selectedWallId, selectedOpeningId, landWidth, landLength]);
 
   return (
     <div ref={containerRef} className="relative flex-1 min-h-0">

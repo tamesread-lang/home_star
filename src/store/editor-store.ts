@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { EditorState, EditorActions } from "@/types/editor";
+import { getDefaultThickness } from "@/types/editor";
 
 type EditorStore = EditorState & EditorActions;
 
@@ -16,22 +17,38 @@ function pushHistory(state: EditorState): Partial<EditorState> {
 export const useEditorStore = create<EditorStore>((set) => ({
   activeTool: "select",
   gridVisible: true,
+  snapSize: 50,
   walls: [],
   openings: [],
+  furniture: [],
   selectedWallId: null,
   selectedOpeningId: null,
+  selectedFurnitureId: null,
   history: [[]],
   historyIndex: 0,
   landWidth: 12,
   landLength: 10,
   wallHeight: 3,
+  wallType: "interior",
   wireframeMode: false,
   is3DFullscreen: false,
+  catalogVisible: false,
+  activeFurnitureTemplate: null,
+  measurePoints: [],
 
   setActiveTool: (tool) =>
-    set({ activeTool: tool, selectedWallId: null, selectedOpeningId: null }),
+    set({
+      activeTool: tool,
+      selectedWallId: null,
+      selectedOpeningId: null,
+      selectedFurnitureId: null,
+      measurePoints: [],
+      activeFurnitureTemplate: null,
+    }),
 
   toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
+
+  setSnapSize: (size) => set({ snapSize: size }),
 
   setLandWidth: (width) => set({ landWidth: width }),
 
@@ -39,9 +56,24 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setWallHeight: (height) => set({ wallHeight: height }),
 
+  setWallType: (type) => set({ wallType: type }),
+
   setWireframeMode: (mode) => set({ wireframeMode: mode }),
 
   setIs3DFullscreen: (fullscreen) => set({ is3DFullscreen: fullscreen }),
+
+  setCatalogVisible: (visible) => set({ catalogVisible: visible }),
+
+  setActiveFurnitureTemplate: (template) =>
+    set({ activeFurnitureTemplate: template }),
+
+  addMeasurePoint: (point) =>
+    set((s) => {
+      const pts = s.measurePoints.length >= 2 ? [point] : [...s.measurePoints, point];
+      return { measurePoints: pts };
+    }),
+
+  clearMeasurePoints: () => set({ measurePoints: [] }),
 
   addWall: (wall) =>
     set((s) => ({
@@ -77,7 +109,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
       };
     }),
 
-  selectWall: (id) => set({ selectedWallId: id, selectedOpeningId: null }),
+  selectWall: (id) =>
+    set({ selectedWallId: id, selectedOpeningId: null, selectedFurnitureId: null }),
 
   addOpening: (opening) =>
     set((s) => ({
@@ -99,7 +132,29 @@ export const useEditorStore = create<EditorStore>((set) => ({
     })),
 
   selectOpening: (id) =>
-    set({ selectedOpeningId: id, selectedWallId: null }),
+    set({ selectedOpeningId: id, selectedWallId: null, selectedFurnitureId: null }),
+
+  addFurniture: (item) =>
+    set((s) => ({
+      furniture: [...s.furniture, item],
+    })),
+
+  updateFurniture: (id, updates) =>
+    set((s) => ({
+      furniture: s.furniture.map((f) =>
+        f.id === id ? { ...f, ...updates } : f
+      ),
+    })),
+
+  deleteFurniture: (id) =>
+    set((s) => ({
+      furniture: s.furniture.filter((f) => f.id !== id),
+      selectedFurnitureId:
+        s.selectedFurnitureId === id ? null : s.selectedFurnitureId,
+    })),
+
+  selectFurniture: (id) =>
+    set({ selectedFurnitureId: id, selectedWallId: null, selectedOpeningId: null }),
 
   undo: () =>
     set((s) => {
@@ -122,5 +177,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
     }),
 
   clearSelection: () =>
-    set({ selectedWallId: null, selectedOpeningId: null }),
+    set({
+      selectedWallId: null,
+      selectedOpeningId: null,
+      selectedFurnitureId: null,
+    }),
 }));

@@ -1,6 +1,9 @@
 "use client";
 
-import { MousePointer2, Eraser, Pencil, Ruler, Grid3X3, DoorOpen, Scan } from "lucide-react";
+import {
+  MousePointer2, Eraser, Pencil, Ruler, Grid3X3, DoorOpen, Scan,
+  Square, Ruler as MeasureIcon, Move, Package,
+} from "lucide-react";
 import IconButton from "@/components/ui/IconButton";
 import { useEditorStore } from "@/store/editor-store";
 import type { Tool } from "@/types/editor";
@@ -8,10 +11,13 @@ import type { Tool } from "@/types/editor";
 const tools: { id: Tool; icon: typeof MousePointer2; label: string }[] = [
   { id: "select", icon: MousePointer2, label: "Select (V)" },
   { id: "wall", icon: Pencil, label: "Wall (W)" },
+  { id: "room", icon: Square, label: "Room" },
   { id: "door", icon: DoorOpen, label: "Door" },
   { id: "window", icon: Scan, label: "Window" },
   { id: "eraser", icon: Eraser, label: "Eraser (E)" },
   { id: "dimension", icon: Ruler, label: "Dimension (D)" },
+  { id: "measure", icon: MeasureIcon, label: "Measure" },
+  { id: "pan", icon: Move, label: "Pan" },
 ];
 
 export default function ToolPalette() {
@@ -19,6 +25,8 @@ export default function ToolPalette() {
   const gridVisible = useEditorStore((s) => s.gridVisible);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const toggleGrid = useEditorStore((s) => s.toggleGrid);
+  const setCatalogVisible = useEditorStore((s) => s.setCatalogVisible);
+  const catalogVisible = useEditorStore((s) => s.catalogVisible);
 
   return (
     <aside className="flex flex-col items-center gap-2 w-14 py-3 border-r border-border bg-surface shrink-0">
@@ -39,6 +47,13 @@ export default function ToolPalette() {
         label="Toggle Grid"
         active={gridVisible}
         onClick={toggleGrid}
+      />
+
+      <IconButton
+        icon={Package}
+        label="Catalog"
+        active={catalogVisible}
+        onClick={() => setCatalogVisible(!catalogVisible)}
       />
     </aside>
   );
