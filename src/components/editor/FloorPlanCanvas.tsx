@@ -429,7 +429,7 @@ export default function FloorPlanCanvas() {
   }> = {
     // ── SELECT ──
     select: {
-      cursor: "default",
+      cursor: "pointer",
       onMouseDown: (pos) => {
         const fi = getFurnitureAtPoint(pos);
         if (fi) { selectFurniture(fi.id); return; }
@@ -453,7 +453,7 @@ export default function FloorPlanCanvas() {
 
     // ── MOVE_PAN ──
     move_pan: {
-      cursor: "move",
+      cursor: "grab",
       onMouseDown: (pos) => {
         const wall = getWallAtPoint(pos);
         if (wall && selectedWallId === wall.id) {
@@ -604,7 +604,7 @@ export default function FloorPlanCanvas() {
 
     // ── OFFSET ──
     offset: {
-      cursor: "crosshair",
+      cursor: "copy",
       onMouseDown: (pos) => {
         const clickedWall = getWallAtPoint(pos);
         if (clickedWall) {
@@ -655,7 +655,7 @@ export default function FloorPlanCanvas() {
 
     // ── MIRROR ──
     mirror: {
-      cursor: "crosshair",
+      cursor: "copy",
       onMouseDown: (pos) => {
         const clickedWall = getWallAtPoint(pos);
         if (clickedWall) {
@@ -670,7 +670,7 @@ export default function FloorPlanCanvas() {
 
     // ── ERASER ──
     eraser: {
-      cursor: "crosshair",
+      cursor: "not-allowed",
       onMouseDown: (pos) => {
         const fi = getFurnitureAtPoint(pos);
         if (fi) { deleteFurniture(fi.id); return; }
@@ -1035,7 +1035,7 @@ export default function FloorPlanCanvas() {
 
     // ── AREA_INSPECTOR ──
     area_inspector: {
-      cursor: "crosshair",
+      cursor: "cell",
       onMouseDown: (pos) => {
         const sr = snapPoint(pos);
         setAreaPolygonPoints([...areaPolygonPoints, sr.point]);
@@ -1105,7 +1105,7 @@ export default function FloorPlanCanvas() {
 
     // ── COLOR_FILL ──
     color_fill: {
-      cursor: "crosshair",
+      cursor: "cell",
       onMouseDown: (pos) => {
         function detectRoomPolygon(p: Point, ws: Wall[]): Point[] | null {
           const threshold = 20;
@@ -1179,7 +1179,7 @@ export default function FloorPlanCanvas() {
 
     // ── LAYER_TOGGLE ──
     layer_toggle: {
-      cursor: "default",
+      cursor: "pointer",
       onMouseDown: () => {
         const store = useEditorStore.getState();
         const allOn = Object.values(store.visibleLayers).every(Boolean);
@@ -1196,7 +1196,7 @@ export default function FloorPlanCanvas() {
 
     // ── GRID_CONFIG ──
     grid_config: {
-      cursor: "default",
+      cursor: "pointer",
       onMouseDown: () => {
         const store = useEditorStore.getState();
         const sizes = [0, 5, 10, 25, 50];
@@ -1294,9 +1294,12 @@ export default function FloorPlanCanvas() {
         else if (state.selectedOpeningId) { state.deleteOpening(state.selectedOpeningId); state.clearSelection(); }
       }
       if (e.key === "Escape") {
-        resetDrawingState();
+        const store = useEditorStore.getState();
+        store.resetDrawingState();
+        store.clearSelection();
+        store.setActiveFurnitureTemplate(null);
+        store.setActiveTool("select");
         drawingStartRef.current = null;
-        clearSelection();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -64,11 +64,15 @@ export default function Home() {
       }
 
       switch (e.key) {
-        case "Escape":
-          useEditorStore.getState().resetDrawingState();
-          useEditorStore.getState().clearSelection();
+        case "Escape": {
+          const st = useEditorStore.getState();
+          st.resetDrawingState();
+          st.clearSelection();
+          st.setActiveFurnitureTemplate(null);
+          st.setActiveTool("select");
           e.preventDefault();
           break;
+        }
         case "z":
         case "Z":
           if (e.ctrlKey || e.metaKey) {

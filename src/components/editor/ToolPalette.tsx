@@ -14,39 +14,23 @@ import { useEditorStore } from "@/store/editor-store";
 import type { Tool, ToolCategory } from "@/types/editor";
 import { TOOL_LABELS, TOOL_SHORTCUTS, TOOL_CATEGORIES } from "@/types/editor";
 
-interface CategoryConfig {
-  id: ToolCategory;
-  label: string;
-  tools: Tool[];
-}
+const CATEGORIES: ToolCategory[] = ["drafting", "openings", "modify", "annotations", "utilities"];
 
-const CATEGORIES: CategoryConfig[] = [
-  {
-    id: "drafting",
-    label: "Drafting",
-    tools: TOOL_CATEGORIES.drafting,
-  },
-  {
-    id: "openings",
-    label: "Openings",
-    tools: TOOL_CATEGORIES.openings,
-  },
-  {
-    id: "modify",
-    label: "Modify",
-    tools: TOOL_CATEGORIES.modify,
-  },
-  {
-    id: "annotations",
-    label: "Annotations",
-    tools: TOOL_CATEGORIES.annotations,
-  },
-  {
-    id: "utilities",
-    label: "Utilities",
-    tools: TOOL_CATEGORIES.utilities,
-  },
-];
+const CATEGORY_LABELS: Record<ToolCategory, string> = {
+  drafting: "Drafting",
+  openings: "Openings",
+  modify: "Modify",
+  annotations: "Annotate",
+  utilities: "Utility",
+};
+
+const CATEGORY_ICONS: Record<ToolCategory, typeof MousePointer2> = {
+  drafting: Pencil,
+  openings: DoorOpen,
+  modify: Scissors,
+  annotations: Ruler,
+  utilities: Settings2,
+};
 
 function getToolIcon(tool: Tool) {
   const icons: Record<string, typeof MousePointer2> = {
@@ -96,15 +80,14 @@ export default function ToolPalette() {
   const setActiveCategory = useEditorStore((s) => s.setActiveCategory);
   const toggleGrid = useEditorStore((s) => s.toggleGrid);
   const setCatalogVisible = useEditorStore((s) => s.setCatalogVisible);
-  const setActiveFurnitureTemplate = useEditorStore(
-    (s) => s.setActiveFurnitureTemplate
-  );
+  const setActiveFurnitureTemplate = useEditorStore((s) => s.setActiveFurnitureTemplate);
+
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     drafting: false,
-    openings: false,
-    modify: false,
-    annotations: false,
-    utilities: false,
+    openings: true,
+    modify: true,
+    annotations: true,
+    utilities: true,
   });
 
   const toggleCategory = (catId: string) => {
@@ -118,38 +101,45 @@ export default function ToolPalette() {
   };
 
   return (
-    <aside className="flex flex-col items-stretch gap-0 w-16 py-2 border-r border-border bg-surface shrink-0 overflow-y-auto">
-      {CATEGORIES.map((cat) => {
-        const isActive = activeCategory === cat.id;
-        const isCollapsed = collapsed[cat.id];
+    <aside className="flex flex-col gap-0 w-14 py-2 border-r border-border bg-[#12121e] shrink-0 overflow-y-auto">
+      {CATEGORIES.map((catId) => {
+        const catTools = TOOL_CATEGORIES[catId];
+        const isActive = activeCategory === catId;
+        const isCollapsed = collapsed[catId];
+        const CatIcon = CATEGORY_ICONS[catId];
+
         return (
-          <div key={cat.id} className="mb-1">
+          <div key={catId} className="mb-0.5">
             <button
-              onClick={() => toggleCategory(cat.id)}
-              className={`flex items-center gap-1 w-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+              onClick={() => toggleCategory(catId)}
+              className={`flex items-center justify-between w-full px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider transition-all duration-150 border-l-2 ${
                 isActive
-                  ? "text-accent bg-accent/10"
-                  : "text-muted hover:text-foreground"
+                  ? "text-blue-400 bg-blue-500/10 border-l-blue-500"
+                  : "text-muted hover:text-foreground hover:bg-white/[0.03] border-l-transparent"
               }`}
-              title={cat.label}
+              title={CATEGORY_LABELS[catId]}
             >
-              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-              <span>{cat.label}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CatIcon size={12} className="shrink-0" />
+                <span className="truncate">{CATEGORY_LABELS[catId]}</span>
+              </div>
+              {isCollapsed ? <ChevronRight size={10} className="shrink-0" /> : <ChevronDown size={10} className="shrink-0" />}
             </button>
+
             {!isCollapsed && (
-              <div className="flex flex-col items-center gap-0.5 px-1">
-                {cat.tools.map((tool) => {
+              <div className="grid grid-cols-2 gap-0.5 px-1.5 py-1">
+                {catTools.map((tool) => {
                   const shortcut = TOOL_SHORTCUTS[tool];
                   const label = TOOL_LABELS[tool];
-                  const tooltip = `${label}${shortcut ? ` (${shortcut})` : ""}`;
                   return (
                     <IconButton
                       key={tool}
                       icon={getToolIcon(tool)}
-                      label={tooltip}
+                      label={label}
+                      shortcut={shortcut}
                       active={activeTool === tool}
                       size="sm"
-                      onClick={() => handleToolClick(tool, cat.id)}
+                      onClick={() => handleToolClick(tool, catId)}
                     />
                   );
                 })}
@@ -159,16 +149,13 @@ export default function ToolPalette() {
         );
       })}
 
-      <div className="w-10 h-px bg-border my-2 mx-auto" />
+      <div className="mx-3 my-1.5 h-px bg-border/50" />
 
-      <div className="flex flex-col items-center gap-1 px-2">
+      <div className="flex flex-col items-center gap-0.5 px-1.5">
         <IconButton
           icon={Grid3x3}
-          label={`Grid ${gridVisible ? "ON" : "OFF"} (${
-            snapSize > 0
-              ? `${(snapSize / 50).toFixed(snapSize < 25 ? 1 : 0)}m snap`
-              : "Free snap"
-          })`}
+          label={`Grid ${gridVisible ? "ON" : "OFF"}`}
+          shortcut={`${(snapSize / 50).toFixed(snapSize < 25 ? 1 : 0)}m`}
           active={gridVisible}
           size="sm"
           onClick={toggleGrid}
