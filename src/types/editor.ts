@@ -1,14 +1,22 @@
+"use client";
+
 export type Tool =
-  | "select" | "wall" | "room" | "column"
-  | "door" | "sliding_door" | "window"
-  | "label" | "measure" | "rotate" | "eraser"
-  | "mirror" | "trim" | "offset" | "fill";
+  | "select" | "move_pan" | "rotate" | "trim" | "extend" | "offset" | "split" | "mirror" | "eraser"
+  | "wall_single" | "wall_polyline" | "wall_arc" | "room_rectangle"
+  | "column_square" | "column_circular" | "curtain_wall" | "slab_floor"
+  | "door_single" | "door_double" | "door_sliding" | "window_standard" | "window_corner" | "wall_opening"
+  | "dimension_linear" | "dimension_angle" | "area_inspector" | "text_annotation" | "leader_arrow"
+  | "tape_measure" | "color_fill" | "layer_toggle" | "grid_config";
+
+export type ToolCategory = "drafting" | "openings" | "modify" | "annotations" | "utilities";
 
 export type WallType = "exterior" | "interior";
-export type OpeningType = "door" | "sliding_door" | "window";
-export type WallAlignment = "center" | "outer" | "inner";
+export type OpeningType = "door" | "sliding_door" | "window" | "double_door" | "corner_window" | "wall_opening";
+export type WallAlignment = "center" | "left" | "right";
 export type ColumnAlignMode = "none" | "center" | "outer_edge" | "corner";
 export type FloorFillType = "tile" | "parquet" | "concrete";
+
+export type SnapMode = "grid" | "endpoint" | "midpoint" | "intersection";
 
 export interface Point {
   x: number;
@@ -24,6 +32,40 @@ export interface Wall {
   thickness: number;
   height: number;
   wallType: WallType;
+  layer?: string;
+}
+
+export interface ArcWall {
+  id: string;
+  cx: number;
+  cy: number;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+  thickness: number;
+  height: number;
+  wallType: WallType;
+  layer?: string;
+}
+
+export interface CurtainWall {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  height: number;
+  mullionSpacing: number;
+  panelWidth: number;
+  layer?: string;
+}
+
+export interface Slab {
+  id: string;
+  points: Point[];
+  thickness: number;
+  height: number;
+  layer?: string;
 }
 
 export interface Opening {
@@ -43,6 +85,7 @@ export interface Column {
   width: number;
   depth: number;
   height: number;
+  isCircular?: boolean;
 }
 
 export interface FloorLabel {
@@ -59,6 +102,29 @@ export interface MeasureLine {
   y1: number;
   x2: number;
   y2: number;
+}
+
+export interface AngularDimension {
+  id: string;
+  centerX: number;
+  centerY: number;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+}
+
+export interface LeaderArrow {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  text?: string;
+}
+
+export interface AreaPolygon {
+  id: string;
+  points: Point[];
 }
 
 export interface FloorFill {
@@ -90,6 +156,23 @@ export interface CleanWallEndpoints {
   y1: number;
   x2: number;
   y2: number;
+}
+
+export interface ToolHandler {
+  cursor?: string;
+  onMouseDown?: (pos: Point, e: MouseEvent) => void;
+  onMouseMove?: (pos: Point, e: MouseEvent) => void;
+  onMouseUp?: (pos: Point, e: MouseEvent) => void;
+  onClick?: (pos: Point, e: MouseEvent) => void;
+  onDblClick?: (pos: Point, e: MouseEvent) => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  cleanup?: () => void;
+}
+
+export interface SnapResult {
+  point: Point;
+  type: SnapMode | "none";
+  distance: number;
 }
 
 export function wallLengthMeters(wall: Wall, gridSize: number): number {
@@ -193,6 +276,44 @@ export function wallOffsetPoints(
   return { nx: (-dy / len) * offset, ny: (dx / len) * offset };
 }
 
+export function segmentIntersection(a1: Point, a2: Point, b1: Point, b2: Point): Point | null {
+  const dax = a2.x - a1.x;
+  const day = a2.y - a1.y;
+  const dbx = b2.x - b1.x;
+  const dby = b2.y - b1.y;
+  const denom = dax * dby - day * dbx;
+  if (Math.abs(denom) < 0.001) return null;
+  const t = ((b1.x - a1.x) * dby - (b1.y - a1.y) * dbx) / denom;
+  const u = ((b1.x - a1.x) * day - (b1.y - a1.y) * dax) / denom;
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+    return { x: a1.x + t * dax, y: a1.y + t * day };
+  }
+  return null;
+}
+
+export function getWallMidpoint(wall: Wall): Point {
+  return { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 };
+}
+
+export function angleBetweenPoints(center: Point, a: Point, b: Point): number {
+  const angleA = Math.atan2(a.y - center.y, a.x - center.x);
+  const angleB = Math.atan2(b.y - center.y, b.x - center.x);
+  let diff = angleB - angleA;
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  return Math.abs(diff);
+}
+
+export function polygonArea(points: Point[]): number {
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  return Math.abs(area) / 2;
+}
+
 export const FURNITURE_CATALOG: Record<string, FurnitureTemplate[]> = {
   "Living Room": [
     { name: "L-Shape Sofa", width: 2.5, height: 1.8 },
@@ -232,49 +353,175 @@ export function getDefaultThickness(wallType: WallType): number {
   return wallType === "exterior" ? 0.3 : 0.15;
 }
 
+export const TOOL_SHORTCUTS: Record<Tool, string> = {
+  select: "V",
+  move_pan: "G",
+  rotate: "R",
+  trim: "T",
+  extend: "X",
+  offset: "O",
+  split: "S",
+  mirror: "M",
+  eraser: "E",
+  wall_single: "W",
+  wall_polyline: "Y",
+  wall_arc: "A",
+  room_rectangle: "Shift+R",
+  column_square: "C",
+  column_circular: "Shift+C",
+  curtain_wall: "U",
+  slab_floor: "Shift+S",
+  door_single: "D",
+  door_double: "Shift+D",
+  door_sliding: "Shift+W",
+  window_standard: "Shift+Z",
+  window_corner: "Shift+X",
+  wall_opening: "Shift+O",
+  dimension_linear: "L",
+  dimension_angle: "Shift+L",
+  area_inspector: "Z",
+  text_annotation: "N",
+  leader_arrow: "Shift+N",
+  tape_measure: "F",
+  color_fill: "H",
+  layer_toggle: "K",
+  grid_config: "Shift+G",
+};
+
+export const TOOL_LABELS: Record<Tool, string> = {
+  select: "Select",
+  move_pan: "Move/Pan",
+  rotate: "Rotate",
+  trim: "Trim",
+  extend: "Extend",
+  offset: "Offset",
+  split: "Split",
+  mirror: "Mirror",
+  eraser: "Eraser",
+  wall_single: "Single Wall",
+  wall_polyline: "Polyline Wall",
+  wall_arc: "Arc Wall",
+  room_rectangle: "Rectangular Room",
+  column_square: "Square Column",
+  column_circular: "Circular Column",
+  curtain_wall: "Curtain Wall",
+  slab_floor: "Floor Slab",
+  door_single: "Single Door",
+  door_double: "Double Door",
+  door_sliding: "Sliding Door",
+  window_standard: "Standard Window",
+  window_corner: "Corner Window",
+  wall_opening: "Wall Opening",
+  dimension_linear: "Linear Dimension",
+  dimension_angle: "Angular Dimension",
+  area_inspector: "Area Inspector",
+  text_annotation: "Text Annotation",
+  leader_arrow: "Leader Arrow",
+  tape_measure: "Tape Measure",
+  color_fill: "Color Fill",
+  layer_toggle: "Layer Toggle",
+  grid_config: "Grid Config",
+};
+
+export const TOOL_CATEGORIES: Record<ToolCategory, Tool[]> = {
+  drafting: ["wall_single", "wall_polyline", "wall_arc", "room_rectangle", "column_square", "column_circular", "curtain_wall", "slab_floor"],
+  openings: ["door_single", "door_double", "door_sliding", "window_standard", "window_corner", "wall_opening"],
+  modify: ["select", "move_pan", "rotate", "trim", "extend", "offset", "split", "mirror", "eraser"],
+  annotations: ["dimension_linear", "dimension_angle", "area_inspector", "text_annotation", "leader_arrow"],
+  utilities: ["tape_measure", "color_fill", "layer_toggle", "grid_config"],
+};
+
 export interface EditorState {
   activeTool: Tool;
+  activeCategory: ToolCategory;
   gridVisible: boolean;
   snapSize: number;
+  snapModes: SnapMode[];
   wallAlignment: WallAlignment;
+  wallThickness: number;
   columnAlignMode: ColumnAlignMode;
+  offsetDistance: number;
+  tapeMeasurePoints: Point[];
+  arcWallPoints: Point[];
+  polylinePoints: Point[];
+  dimensionAngleCenter: Point | null;
+  dimensionAngleStart: Point | null;
+  areaPolygonPoints: Point[];
+  leaderArrowStart: Point | null;
+  isDrawing: boolean;
   walls: Wall[];
+  arcWalls: ArcWall[];
+  curtainWalls: CurtainWall[];
+  slabs: Slab[];
   openings: Opening[];
   columns: Column[];
   labels: FloorLabel[];
   measureLines: MeasureLine[];
+  angularDimensions: AngularDimension[];
+  leaderArrows: LeaderArrow[];
+  areaPolygons: AreaPolygon[];
   floorFills: FloorFill[];
   furniture: FurnitureItem[];
   selectedWallId: string | null;
+  selectedArcWallId: string | null;
+  selectedCurtainWallId: string | null;
+  selectedSlabId: string | null;
   selectedOpeningId: string | null;
   selectedColumnId: string | null;
   selectedLabelId: string | null;
+  selectedMeasureLineId: string | null;
   selectedFurnitureId: string | null;
-  history: Wall[][];
+  selectedFillId: string | null;
+  history: { walls: Wall[]; arcWalls: ArcWall[]; curtainWalls: CurtainWall[]; slabs: Slab[] }[];
   historyIndex: number;
   landWidth: number;
   landLength: number;
   wallHeight: number;
   wallType: WallType;
+  activeLayer: string;
+  layers: string[];
   wireframeMode: boolean;
   is3DFullscreen: boolean;
   catalogVisible: boolean;
   activeFurnitureTemplate: FurnitureTemplate | null;
-  offsetDistance: number;
 }
 
 export interface EditorActions {
   setActiveTool: (tool: Tool) => void;
+  setActiveCategory: (cat: ToolCategory) => void;
   toggleGrid: () => void;
   setSnapSize: (size: number) => void;
+  setSnapModes: (modes: SnapMode[]) => void;
+  toggleSnapMode: (mode: SnapMode) => void;
   setWallAlignment: (align: WallAlignment) => void;
+  setWallThickness: (t: number) => void;
   setColumnAlignMode: (mode: ColumnAlignMode) => void;
   setOffsetDistance: (dist: number) => void;
+  setTapeMeasurePoints: (pts: Point[]) => void;
+  setArcWallPoints: (pts: Point[]) => void;
+  setPolylinePoints: (pts: Point[]) => void;
+  setIsDrawing: (d: boolean) => void;
+  setDimensionAngleCenter: (p: Point | null) => void;
+  setDimensionAngleStart: (p: Point | null) => void;
+  setAreaPolygonPoints: (pts: Point[]) => void;
+  setLeaderArrowStart: (p: Point | null) => void;
   addWall: (wall: Wall) => void;
   addWalls: (walls: Wall[]) => void;
   updateWall: (id: string, updates: Partial<Wall>) => void;
   deleteWall: (id: string) => void;
   selectWall: (id: string | null) => void;
+  addArcWall: (aw: ArcWall) => void;
+  updateArcWall: (id: string, updates: Partial<ArcWall>) => void;
+  deleteArcWall: (id: string) => void;
+  selectArcWall: (id: string | null) => void;
+  addCurtainWall: (cw: CurtainWall) => void;
+  updateCurtainWall: (id: string, updates: Partial<CurtainWall>) => void;
+  deleteCurtainWall: (id: string) => void;
+  selectCurtainWall: (id: string | null) => void;
+  addSlab: (s: Slab) => void;
+  updateSlab: (id: string, updates: Partial<Slab>) => void;
+  deleteSlab: (id: string) => void;
+  selectSlab: (id: string | null) => void;
   addOpening: (opening: Opening) => void;
   updateOpening: (id: string, updates: Partial<Opening>) => void;
   deleteOpening: (id: string) => void;
@@ -289,6 +536,10 @@ export interface EditorActions {
   selectLabel: (id: string | null) => void;
   addMeasureLine: (line: MeasureLine) => void;
   clearMeasureLines: () => void;
+  addAngularDimension: (ad: AngularDimension) => void;
+  addLeaderArrow: (la: LeaderArrow) => void;
+  addAreaPolygon: (ap: AreaPolygon) => void;
+  deleteAreaPolygon: (id: string) => void;
   addFloorFill: (fill: FloorFill) => void;
   updateFloorFill: (id: string, updates: Partial<FloorFill>) => void;
   deleteFloorFill: (id: string) => void;
@@ -303,8 +554,11 @@ export interface EditorActions {
   setLandLength: (length: number) => void;
   setWallHeight: (height: number) => void;
   setWallType: (type: WallType) => void;
+  setActiveLayer: (l: string) => void;
+  addLayer: (l: string) => void;
   setWireframeMode: (mode: boolean) => void;
   setIs3DFullscreen: (fullscreen: boolean) => void;
   setCatalogVisible: (visible: boolean) => void;
   setActiveFurnitureTemplate: (template: FurnitureTemplate | null) => void;
+  resetDrawingState: () => void;
 }

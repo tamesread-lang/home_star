@@ -7,6 +7,45 @@ import CatalogPanel from "@/components/editor/CatalogPanel";
 import Workspace from "@/components/editor/Workspace";
 import InspectorPanel from "@/components/editor/InspectorPanel";
 import { useEditorStore } from "@/store/editor-store";
+import type { Tool } from "@/types/editor";
+
+const KEY_MAP: Record<string, Tool> = {
+  v: "select",
+  g: "move_pan",
+  r: "rotate",
+  t: "trim",
+  x: "extend",
+  o: "offset",
+  s: "split",
+  m: "mirror",
+  e: "eraser",
+  w: "wall_single",
+  y: "wall_polyline",
+  a: "wall_arc",
+  c: "column_square",
+  u: "curtain_wall",
+  d: "door_single",
+  l: "dimension_linear",
+  z: "area_inspector",
+  n: "text_annotation",
+  f: "tape_measure",
+  h: "color_fill",
+  k: "layer_toggle",
+};
+
+const SHIFT_KEY_MAP: Record<string, Tool> = {
+  r: "room_rectangle",
+  c: "column_circular",
+  s: "slab_floor",
+  d: "door_double",
+  w: "door_sliding",
+  z: "window_standard",
+  x: "window_corner",
+  o: "wall_opening",
+  l: "dimension_angle",
+  n: "leader_arrow",
+  g: "grid_config",
+};
 
 export default function Home() {
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
@@ -14,38 +53,32 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      switch (e.key.toLowerCase()) {
-        case "v":
-          setActiveTool("select");
-          break;
-        case "w":
-          setActiveTool("wall");
-          break;
-        case "t":
-          setActiveTool("label");
-          break;
-        case "m":
-          setActiveTool("measure");
-          break;
-        case "r":
-          setActiveTool("rotate");
-          break;
-        case "e":
-          setActiveTool("eraser");
+
+      const key = e.key.toLowerCase();
+      const tool = e.shiftKey ? SHIFT_KEY_MAP[key] : KEY_MAP[key];
+
+      if (tool) {
+        setActiveTool(tool);
+        e.preventDefault();
+        return;
+      }
+
+      switch (e.key) {
+        case "Escape":
+          useEditorStore.getState().resetDrawingState();
+          useEditorStore.getState().clearSelection();
+          e.preventDefault();
           break;
         case "z":
+        case "Z":
           if (e.ctrlKey || e.metaKey) {
-            const store = useEditorStore.getState();
             if (e.shiftKey) {
-              store.redo();
+              useEditorStore.getState().redo();
             } else {
-              store.undo();
+              useEditorStore.getState().undo();
             }
             e.preventDefault();
           }
-          break;
-        case "escape":
-          useEditorStore.getState().clearSelection();
           break;
       }
     };

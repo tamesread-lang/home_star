@@ -1,43 +1,81 @@
 import { create } from "zustand";
-import type { EditorState, EditorActions } from "@/types/editor";
+import type {
+  EditorState, EditorActions, Wall, ArcWall, CurtainWall, Slab,
+} from "@/types/editor";
 
 type EditorStore = EditorState & EditorActions;
 
+interface HistorySnapshot {
+  walls: Wall[];
+  arcWalls: ArcWall[];
+  curtainWalls: CurtainWall[];
+  slabs: Slab[];
+}
+
 function pushHistory(state: EditorState): Partial<EditorState> {
   const newHistory = state.history.slice(0, state.historyIndex + 1);
-  newHistory.push(JSON.parse(JSON.stringify(state.walls)));
+  newHistory.push({
+    walls: JSON.parse(JSON.stringify(state.walls)),
+    arcWalls: JSON.parse(JSON.stringify(state.arcWalls)),
+    curtainWalls: JSON.parse(JSON.stringify(state.curtainWalls)),
+    slabs: JSON.parse(JSON.stringify(state.slabs)),
+  });
   if (newHistory.length > 50) newHistory.shift();
   return {
-    history: newHistory,
+    history: newHistory as HistorySnapshot[],
     historyIndex: newHistory.length - 1,
   };
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
   activeTool: "select",
+  activeCategory: "drafting",
   gridVisible: true,
   snapSize: 25,
+  snapModes: ["grid", "endpoint"],
   wallAlignment: "center",
+  wallThickness: 0.2,
   columnAlignMode: "none",
   offsetDistance: 0.2,
+  tapeMeasurePoints: [],
+  arcWallPoints: [],
+  polylinePoints: [],
+  dimensionAngleCenter: null,
+  dimensionAngleStart: null,
+  areaPolygonPoints: [],
+  leaderArrowStart: null,
+  isDrawing: false,
   walls: [],
+  arcWalls: [],
+  curtainWalls: [],
+  slabs: [],
   openings: [],
   columns: [],
   labels: [],
   measureLines: [],
+  angularDimensions: [],
+  leaderArrows: [],
+  areaPolygons: [],
   floorFills: [],
   furniture: [],
   selectedWallId: null,
+  selectedArcWallId: null,
+  selectedCurtainWallId: null,
+  selectedSlabId: null,
   selectedOpeningId: null,
   selectedColumnId: null,
   selectedLabelId: null,
+  selectedMeasureLineId: null,
   selectedFurnitureId: null,
-  history: [[]],
+  selectedFillId: null,
+  history: [{ walls: [], arcWalls: [], curtainWalls: [], slabs: [] }],
   historyIndex: 0,
   landWidth: 12,
   landLength: 10,
   wallHeight: 3,
   wallType: "interior",
+  activeLayer: "Default",
+  layers: ["Default", "Walls", "Openings", "Furniture", "Annotations"],
   wireframeMode: false,
   is3DFullscreen: false,
   catalogVisible: false,
@@ -47,21 +85,66 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set({
       activeTool: tool,
       selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedOpeningId: null,
       selectedColumnId: null,
       selectedLabelId: null,
+      selectedMeasureLineId: null,
       selectedFurnitureId: null,
+      selectedFillId: null,
+      isDrawing: false,
+      tapeMeasurePoints: [],
+      arcWallPoints: [],
+      polylinePoints: [],
+      dimensionAngleCenter: null,
+      dimensionAngleStart: null,
+      areaPolygonPoints: [],
+      leaderArrowStart: null,
     }),
+
+  setActiveCategory: (cat) => set({ activeCategory: cat }),
 
   toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
 
   setSnapSize: (size) => set({ snapSize: size }),
 
+  setSnapModes: (modes) => set({ snapModes: modes }),
+
+  toggleSnapMode: (mode) =>
+    set((s) => {
+      const has = s.snapModes.includes(mode);
+      return {
+        snapModes: has
+          ? s.snapModes.filter((m) => m !== mode)
+          : [...s.snapModes, mode],
+      };
+    }),
+
   setWallAlignment: (align) => set({ wallAlignment: align }),
+
+  setWallThickness: (t) => set({ wallThickness: t }),
 
   setColumnAlignMode: (mode) => set({ columnAlignMode: mode }),
 
   setOffsetDistance: (dist) => set({ offsetDistance: dist }),
+
+  setTapeMeasurePoints: (pts) => set({ tapeMeasurePoints: pts }),
+
+  setArcWallPoints: (pts) => set({ arcWallPoints: pts }),
+
+  setPolylinePoints: (pts) => set({ polylinePoints: pts }),
+
+  setIsDrawing: (d) => set({ isDrawing: d }),
+
+  setDimensionAngleCenter: (p) => set({ dimensionAngleCenter: p }),
+
+  setDimensionAngleStart: (p) => set({ dimensionAngleStart: p }),
+
+  setAreaPolygonPoints: (pts) => set({ areaPolygonPoints: pts }),
+
+  setLeaderArrowStart: (p) => set({ leaderArrowStart: p }),
 
   setLandWidth: (width) => set({ landWidth: width }),
 
@@ -71,6 +154,13 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setWallType: (type) => set({ wallType: type }),
 
+  setActiveLayer: (l) => set({ activeLayer: l }),
+
+  addLayer: (l) =>
+    set((s) => ({
+      layers: s.layers.includes(l) ? s.layers : [...s.layers, l],
+    })),
+
   setWireframeMode: (mode) => set({ wireframeMode: mode }),
 
   setIs3DFullscreen: (fullscreen) => set({ is3DFullscreen: fullscreen }),
@@ -79,6 +169,18 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setActiveFurnitureTemplate: (template) =>
     set({ activeFurnitureTemplate: template }),
+
+  resetDrawingState: () =>
+    set({
+      tapeMeasurePoints: [],
+      arcWallPoints: [],
+      polylinePoints: [],
+      dimensionAngleCenter: null,
+      dimensionAngleStart: null,
+      areaPolygonPoints: [],
+      leaderArrowStart: null,
+      isDrawing: false,
+    }),
 
   addWall: (wall) =>
     set((s) => ({
@@ -115,8 +217,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
         openings: newOpenings,
         selectedWallId: s.selectedWallId === id ? null : s.selectedWallId,
         selectedOpeningId:
-          s.selectedOpeningId &&
-          newOpenings.every((o) => o.id !== s.selectedOpeningId)
+          s.selectedOpeningId && newOpenings.every((o) => o.id !== s.selectedOpeningId)
             ? null
             : s.selectedOpeningId,
         ...pushHistory({ ...s, walls: newWalls }),
@@ -126,10 +227,111 @@ export const useEditorStore = create<EditorStore>((set) => ({
   selectWall: (id) =>
     set({
       selectedWallId: id,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedOpeningId: null,
       selectedColumnId: null,
       selectedLabelId: null,
+      selectedMeasureLineId: null,
       selectedFurnitureId: null,
+      selectedFillId: null,
+    }),
+
+  addArcWall: (aw) =>
+    set((s) => ({
+      arcWalls: [...s.arcWalls, aw],
+      ...pushHistory({ ...s, arcWalls: [...s.arcWalls, aw] }),
+    })),
+
+  updateArcWall: (id, updates) =>
+    set((s) => ({
+      arcWalls: s.arcWalls.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+    })),
+
+  deleteArcWall: (id) =>
+    set((s) => ({
+      arcWalls: s.arcWalls.filter((a) => a.id !== id),
+      selectedArcWallId: s.selectedArcWallId === id ? null : s.selectedArcWallId,
+    })),
+
+  selectArcWall: (id) =>
+    set({
+      selectedArcWallId: id,
+      selectedWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
+      selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
+      selectedMeasureLineId: null,
+      selectedFurnitureId: null,
+      selectedFillId: null,
+    }),
+
+  addCurtainWall: (cw) =>
+    set((s) => ({
+      curtainWalls: [...s.curtainWalls, cw],
+      ...pushHistory({ ...s, curtainWalls: [...s.curtainWalls, cw] }),
+    })),
+
+  updateCurtainWall: (id, updates) =>
+    set((s) => ({
+      curtainWalls: s.curtainWalls.map((c) =>
+        c.id === id ? { ...c, ...updates } : c
+      ),
+    })),
+
+  deleteCurtainWall: (id) =>
+    set((s) => ({
+      curtainWalls: s.curtainWalls.filter((c) => c.id !== id),
+      selectedCurtainWallId:
+        s.selectedCurtainWallId === id ? null : s.selectedCurtainWallId,
+    })),
+
+  selectCurtainWall: (id) =>
+    set({
+      selectedCurtainWallId: id,
+      selectedWallId: null,
+      selectedArcWallId: null,
+      selectedSlabId: null,
+      selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
+      selectedMeasureLineId: null,
+      selectedFurnitureId: null,
+      selectedFillId: null,
+    }),
+
+  addSlab: (s) =>
+    set((state) => ({
+      slabs: [...state.slabs, s],
+      ...pushHistory({ ...state, slabs: [...state.slabs, s] }),
+    })),
+
+  updateSlab: (id, updates) =>
+    set((s) => ({
+      slabs: s.slabs.map((sl) => (sl.id === id ? { ...sl, ...updates } : sl)),
+    })),
+
+  deleteSlab: (id) =>
+    set((s) => ({
+      slabs: s.slabs.filter((sl) => sl.id !== id),
+      selectedSlabId: s.selectedSlabId === id ? null : s.selectedSlabId,
+    })),
+
+  selectSlab: (id) =>
+    set({
+      selectedSlabId: id,
+      selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedOpeningId: null,
+      selectedColumnId: null,
+      selectedLabelId: null,
+      selectedMeasureLineId: null,
+      selectedFurnitureId: null,
+      selectedFillId: null,
     }),
 
   addOpening: (opening) =>
@@ -155,9 +357,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set({
       selectedOpeningId: id,
       selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedColumnId: null,
       selectedLabelId: null,
+      selectedMeasureLineId: null,
       selectedFurnitureId: null,
+      selectedFillId: null,
     }),
 
   addColumn: (column) =>
@@ -183,9 +390,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set({
       selectedColumnId: id,
       selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedOpeningId: null,
       selectedLabelId: null,
+      selectedMeasureLineId: null,
       selectedFurnitureId: null,
+      selectedFillId: null,
     }),
 
   addLabel: (label) =>
@@ -211,9 +423,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set({
       selectedLabelId: id,
       selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedOpeningId: null,
       selectedColumnId: null,
+      selectedMeasureLineId: null,
       selectedFurnitureId: null,
+      selectedFillId: null,
     }),
 
   addMeasureLine: (line) =>
@@ -223,6 +440,26 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   clearMeasureLines: () =>
     set({ measureLines: [] }),
+
+  addAngularDimension: (ad) =>
+    set((s) => ({
+      angularDimensions: [...s.angularDimensions, ad],
+    })),
+
+  addLeaderArrow: (la) =>
+    set((s) => ({
+      leaderArrows: [...s.leaderArrows, la],
+    })),
+
+  addAreaPolygon: (ap) =>
+    set((s) => ({
+      areaPolygons: [...s.areaPolygons, ap],
+    })),
+
+  deleteAreaPolygon: (id) =>
+    set((s) => ({
+      areaPolygons: s.areaPolygons.filter((a) => a.id !== id),
+    })),
 
   addFloorFill: (fill) =>
     set((s) => ({
@@ -264,17 +501,26 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set({
       selectedFurnitureId: id,
       selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedOpeningId: null,
       selectedColumnId: null,
       selectedLabelId: null,
+      selectedMeasureLineId: null,
+      selectedFillId: null,
     }),
 
   undo: () =>
     set((s) => {
       if (s.historyIndex <= 0) return s;
       const newIndex = s.historyIndex - 1;
+      const snap = s.history[newIndex];
       return {
-        walls: JSON.parse(JSON.stringify(s.history[newIndex])),
+        walls: JSON.parse(JSON.stringify(snap.walls)),
+        arcWalls: JSON.parse(JSON.stringify(snap.arcWalls)),
+        curtainWalls: JSON.parse(JSON.stringify(snap.curtainWalls)),
+        slabs: JSON.parse(JSON.stringify(snap.slabs)),
         historyIndex: newIndex,
       };
     }),
@@ -283,8 +529,12 @@ export const useEditorStore = create<EditorStore>((set) => ({
     set((s) => {
       if (s.historyIndex >= s.history.length - 1) return s;
       const newIndex = s.historyIndex + 1;
+      const snap = s.history[newIndex];
       return {
-        walls: JSON.parse(JSON.stringify(s.history[newIndex])),
+        walls: JSON.parse(JSON.stringify(snap.walls)),
+        arcWalls: JSON.parse(JSON.stringify(snap.arcWalls)),
+        curtainWalls: JSON.parse(JSON.stringify(snap.curtainWalls)),
+        slabs: JSON.parse(JSON.stringify(snap.slabs)),
         historyIndex: newIndex,
       };
     }),
@@ -292,9 +542,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
   clearSelection: () =>
     set({
       selectedWallId: null,
+      selectedArcWallId: null,
+      selectedCurtainWallId: null,
+      selectedSlabId: null,
       selectedOpeningId: null,
       selectedColumnId: null,
       selectedLabelId: null,
+      selectedMeasureLineId: null,
       selectedFurnitureId: null,
+      selectedFillId: null,
     }),
 }));
