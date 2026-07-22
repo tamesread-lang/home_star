@@ -17,6 +17,7 @@ export type ColumnAlignMode = "none" | "center" | "outer_edge" | "corner";
 export type FloorFillType = "tile" | "parquet" | "concrete";
 
 export type SnapMode = "grid" | "endpoint" | "midpoint" | "intersection";
+export type LayerName = "walls" | "openings" | "columns" | "furniture" | "annotations" | "fills" | "grid";
 
 export interface Point {
   x: number;
@@ -449,6 +450,9 @@ export interface EditorState {
   areaPolygonPoints: Point[];
   leaderArrowStart: Point | null;
   isDrawing: boolean;
+  visibleLayers: Record<LayerName, boolean>;
+  tapeMeasureLines: MeasureLine[];
+  roomPolygons: AreaPolygon[];
   walls: Wall[];
   arcWalls: ArcWall[];
   curtainWalls: CurtainWall[];
@@ -561,4 +565,11 @@ export interface EditorActions {
   setCatalogVisible: (visible: boolean) => void;
   setActiveFurnitureTemplate: (template: FurnitureTemplate | null) => void;
   resetDrawingState: () => void;
+  toggleLayerVisibility: (layer: LayerName) => void;
+  setLayerVisibility: (layer: LayerName, visible: boolean) => void;
+  addTapeMeasureLine: (line: MeasureLine) => void;
+  clearTapeMeasureLines: () => void;
+  addRoomPolygon: (ap: AreaPolygon) => void;
+  removeRoomPolygon: (id: string) => void;
+  clearRoomPolygons: () => void;
 }

@@ -233,6 +233,12 @@ export default function FloorPlanCanvas() {
   const selectArcWall = useEditorStore((s) => s.selectArcWall);
   const selectCurtainWall = useEditorStore((s) => s.selectCurtainWall);
   const selectSlab = useEditorStore((s) => s.selectSlab);
+  const addTapeMeasureLine = useEditorStore((s) => s.addTapeMeasureLine);
+  const tapeMeasureLines = useEditorStore((s) => s.tapeMeasureLines);
+  const visibleLayers = useEditorStore((s) => s.visibleLayers);
+  const addRoomPolygon = useEditorStore((s) => s.addRoomPolygon);
+  const roomPolygons = useEditorStore((s) => s.roomPolygons);
+  const toggleLayerVisibility = useEditorStore((s) => s.toggleLayerVisibility);
 
   const cleanEndpoints = useMemo(() => computeCleanEndpoints(walls), [walls]);
 
@@ -491,15 +497,58 @@ export default function FloorPlanCanvas() {
       cursor: "crosshair",
       onMouseDown: (pos) => {
         const clickedWall = getWallAtPoint(pos);
-        if (clickedWall) {
-          const intersection = findNearestWallIntersection(clickedWall, walls);
-          if (intersection) {
-            const d1 = distance({ x: clickedWall.x1, y: clickedWall.y1 }, intersection.point);
-            const d2 = distance({ x: clickedWall.x2, y: clickedWall.y2 }, intersection.point);
-            if (d1 < d2) {
-              updateWall(clickedWall.id, { x1: intersection.point.x, y1: intersection.point.y });
-            } else {
-              updateWall(clickedWall.id, { x2: intersection.point.x, y2: intersection.point.y });
+        if (!clickedWall) return;
+        const a1: Point = { x: clickedWall.x1, y: clickedWall.y1 };
+        const a2: Point = { x: clickedWall.x2, y: clickedWall.y2 };
+        type IntPt = { point: Point; t: number; wall: Wall };
+        const intersections: IntPt[] = [];
+        const dx = clickedWall.x2 - clickedWall.x1;
+        const dy = clickedWall.y2 - clickedWall.y1;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1) return;
+        for (const other of walls) {
+          if (other.id === clickedWall.id) continue;
+          const b1: Point = { x: other.x1, y: other.y1 };
+          const b2: Point = { x: other.x2, y: other.y2 };
+          const pt = segmentIntersection(a1, a2, b1, b2);
+          if (pt) {
+            const t = ((pt.x - clickedWall.x1) * dx + (pt.y - clickedWall.y1) * dy) / len2;
+            if (t > 0.001 && t < 0.999) {
+              intersections.push({ point: pt, t, wall: other });
+            }
+          }
+        }
+        if (intersections.length === 0) return;
+        intersections.sort((a, b) => a.t - b.t);
+        const clickT = ((pos.x - clickedWall.x1) * dx + (pos.y - clickedWall.y1) * dy) / len2;
+        let segIdx = 0;
+        for (let i = 0; i < intersections.length - 1; i++) {
+          if (clickT > intersections[i].t && clickT < intersections[i + 1].t) {
+            segIdx = i;
+            break;
+          }
+        }
+        if (clickT < intersections[0].t) {
+          updateWall(clickedWall.id, { x1: intersections[0].point.x, y1: intersections[0].point.y });
+        } else if (clickT > intersections[intersections.length - 1].t) {
+          updateWall(clickedWall.id, { x2: intersections[intersections.length - 1].point.x, y2: intersections[intersections.length - 1].point.y });
+        } else {
+          const pts = [clickedWall.x1, clickedWall.y1];
+          for (let i = 0; i < intersections.length; i++) {
+            if (i !== segIdx && i !== segIdx + 1) {
+              pts.push(intersections[i].point.x, intersections[i].point.y);
+            }
+          }
+          pts.push(clickedWall.x2, clickedWall.y2);
+          if (pts.length >= 4) {
+            updateWall(clickedWall.id, { x1: pts[0], y1: pts[1], x2: pts[2], y2: pts[3] });
+            for (let i = 4; i < pts.length; i += 2) {
+              addWall({
+                id: genId("wall"), x1: pts[i - 2], y1: pts[i - 1],
+                x2: pts[i], y2: pts[i + 1],
+                thickness: clickedWall.thickness, height: clickedWall.height,
+                wallType: clickedWall.wallType, layer: clickedWall.layer,
+              });
             }
           }
         }
@@ -511,16 +560,43 @@ export default function FloorPlanCanvas() {
       cursor: "crosshair",
       onMouseDown: (pos) => {
         const clickedWall = getWallAtPoint(pos);
-        if (clickedWall) {
-          const intersection = findNearestWallIntersection(clickedWall, walls);
-          if (intersection) {
-            const d1 = distance({ x: clickedWall.x1, y: clickedWall.y1 }, intersection.point);
-            const d2 = distance({ x: clickedWall.x2, y: clickedWall.y2 }, intersection.point);
-            if (d1 > d2) {
-              updateWall(clickedWall.id, { x2: intersection.point.x, y2: intersection.point.y });
-            } else {
-              updateWall(clickedWall.id, { x1: intersection.point.x, y1: intersection.point.y });
-            }
+        if (!clickedWall) return;
+        const dStart = distance(pos, { x: clickedWall.x1, y: clickedWall.y1 });
+        const dEnd = distance(pos, { x: clickedWall.x2, y: clickedWall.y2 });
+        const extendStart = dStart < dEnd;
+        const origin: Point = extendStart
+          ? { x: clickedWall.x1, y: clickedWall.y1 }
+          : { x: clickedWall.x2, y: clickedWall.y2 };
+        const dirX = extendStart
+          ? (clickedWall.x1 - clickedWall.x2)
+          : (clickedWall.x2 - clickedWall.x1);
+        const dirY = extendStart
+          ? (clickedWall.y1 - clickedWall.y2)
+          : (clickedWall.y2 - clickedWall.y1);
+        const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+        if (dirLen < 0.001) return;
+        const ux = dirX / dirLen, uy = dirY / dirLen;
+        let bestT = Infinity;
+        let bestPt: Point | null = null;
+        for (const other of walls) {
+          if (other.id === clickedWall.id) continue;
+          const oa: Point = { x: other.x1, y: other.y1 };
+          const ob: Point = { x: other.x2, y: other.y2 };
+          const oDx = ob.x - oa.x, oDy = ob.y - oa.y;
+          const denom = ux * oDy - uy * oDx;
+          if (Math.abs(denom) < 0.0001) continue;
+          const t = ((oa.x - origin.x) * oDy - (oa.y - origin.y) * oDx) / denom;
+          const u = ((oa.x - origin.x) * uy - (oa.y - origin.y) * ux) / -denom;
+          if (t > 0.001 && u >= 0 && u <= 1 && t < bestT) {
+            bestT = t;
+            bestPt = { x: origin.x + t * ux, y: origin.y + t * uy };
+          }
+        }
+        if (bestPt) {
+          if (extendStart) {
+            updateWall(clickedWall.id, { x1: bestPt.x, y1: bestPt.y });
+          } else {
+            updateWall(clickedWall.id, { x2: bestPt.x, y2: bestPt.y });
           }
         }
       },
@@ -554,13 +630,22 @@ export default function FloorPlanCanvas() {
         const dy = wall.y2 - wall.y1;
         const len2 = dx * dx + dy * dy;
         if (len2 < 1) return;
-        const t = ((pos.x - wall.x1) * dx + (pos.y - wall.y1) * dy) / len2;
-        if (t <= 0.05 || t >= 0.95) return;
+        const t = Math.max(0.01, Math.min(0.99, ((pos.x - wall.x1) * dx + (pos.y - wall.y1) * dy) / len2));
         const splitX = wall.x1 + t * dx;
         const splitY = wall.y1 + t * dy;
+        const newId = genId("wall");
+        const wallOpenings = openings.filter((o) => o.wallId === wall.id);
+        const store = useEditorStore.getState();
+        for (const op of wallOpenings) {
+          if (op.position > t) {
+            store.updateOpening(op.id, { wallId: newId, position: (op.position - t) / (1 - t) });
+          } else {
+            store.updateOpening(op.id, { position: op.position / t });
+          }
+        }
         updateWall(wall.id, { x2: splitX, y2: splitY });
         addWall({
-          id: genId("wall"), x1: splitX, y1: splitY,
+          id: newId, x1: splitX, y1: splitY,
           x2: wall.x2, y2: wall.y2,
           thickness: wall.thickness, height: wall.height, wallType: wall.wallType,
           layer: wall.layer,
@@ -1003,6 +1088,13 @@ export default function FloorPlanCanvas() {
         if (tapeMeasurePoints.length === 0) {
           setTapeMeasurePoints([snapped]);
         } else {
+          if (distance(tapeMeasurePoints[0], snapped) > 3) {
+            addTapeMeasureLine({
+              id: genId("meas"),
+              x1: tapeMeasurePoints[0].x, y1: tapeMeasurePoints[0].y,
+              x2: snapped.x, y2: snapped.y,
+            });
+          }
           setTapeMeasurePoints([tapeMeasurePoints[0], snapped]);
         }
       },
@@ -1015,17 +1107,73 @@ export default function FloorPlanCanvas() {
     color_fill: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
-        const fillSize = 30;
-        addFloorFill({
-          id: genId("fill"),
-          points: [
-            { x: pos.x - fillSize, y: pos.y - fillSize },
-            { x: pos.x + fillSize, y: pos.y - fillSize },
-            { x: pos.x + fillSize, y: pos.y + fillSize },
-            { x: pos.x - fillSize, y: pos.y + fillSize },
-          ],
-          fillType: "tile",
-        });
+        function detectRoomPolygon(p: Point, ws: Wall[]): Point[] | null {
+          const threshold = 20;
+          type Edge = { wall: Wall; t: number; pt: Point };
+          const edges: Edge[] = [];
+          for (const w of ws) {
+            const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+            const len2 = dx * dx + dy * dy;
+            if (len2 < 1) continue;
+            const t = ((p.x - w.x1) * dx + (p.y - w.y1) * dy) / len2;
+            if (t < -0.2 || t > 1.2) continue;
+            const px = w.x1 + t * dx, py = w.y1 + t * dy;
+            const dist = distance(p, { x: px, y: py });
+            if (dist < threshold && dist < GRID_SIZE * 2) {
+              edges.push({ wall: w, t, pt: { x: px, y: py } });
+            }
+          }
+          if (edges.length < 4) return null;
+          edges.sort((a, b) => a.t - b.t);
+          const ox = p.x, oy = p.y;
+          const hitPts: Point[] = [];
+          for (const e of edges) {
+            const angle = Math.atan2(e.pt.y - oy, e.pt.x - ox);
+            const dist2 = distance(p, e.pt);
+            hitPts.push({ x: e.pt.x, y: e.pt.y });
+          }
+          if (hitPts.length < 4) return null;
+          const hull: Point[] = [];
+          let leftMost = hitPts[0];
+          let leftIdx = 0;
+          for (let i = 1; i < hitPts.length; i++) {
+            if (hitPts[i].x < leftMost.x) { leftMost = hitPts[i]; leftIdx = i; }
+          }
+          let curr = leftIdx;
+          let count = 0;
+          do {
+            hull.push(hitPts[curr]);
+            let next = (curr + 1) % hitPts.length;
+            for (let i = 0; i < hitPts.length; i++) {
+              if (i === curr) continue;
+              const cross = (hitPts[i].x - hitPts[curr].x) * (hitPts[next].y - hitPts[curr].y) -
+                            (hitPts[i].y - hitPts[curr].y) * (hitPts[next].x - hitPts[curr].x);
+              if (cross < 0) next = i;
+            }
+            curr = next;
+            count++;
+          } while (curr !== leftIdx && count < 20);
+          if (hull.length < 3) return null;
+          return hull;
+        }
+        const roomPoly = detectRoomPolygon(pos, walls);
+        if (roomPoly) {
+          addFloorFill({
+            id: genId("fill"), points: roomPoly, fillType: "tile",
+          });
+        } else {
+          const fillSize = 20;
+          addFloorFill({
+            id: genId("fill"),
+            points: [
+              { x: pos.x - fillSize, y: pos.y - fillSize },
+              { x: pos.x + fillSize, y: pos.y - fillSize },
+              { x: pos.x + fillSize, y: pos.y + fillSize },
+              { x: pos.x - fillSize, y: pos.y + fillSize },
+            ],
+            fillType: "tile",
+          });
+        }
       },
     },
 
@@ -1034,10 +1182,15 @@ export default function FloorPlanCanvas() {
       cursor: "default",
       onMouseDown: () => {
         const store = useEditorStore.getState();
-        const layers = store.layers;
-        const idx = layers.indexOf(store.activeLayer);
-        const next = layers[(idx + 1) % layers.length];
-        store.setActiveLayer(next);
+        const allOn = Object.values(store.visibleLayers).every(Boolean);
+        const layerKeys: Array<keyof typeof store.visibleLayers> = ["walls", "openings", "columns", "furniture", "annotations", "fills", "grid"];
+        if (allOn) {
+          store.setLayerVisibility("grid", false);
+        } else {
+          for (const k of layerKeys) {
+            store.setLayerVisibility(k, true);
+          }
+        }
       },
     },
 
@@ -1340,10 +1493,10 @@ export default function FloorPlanCanvas() {
           clearSelection();
         }}
       >
-        <Layer>
+        {visibleLayers.grid && <Layer>
           {renderGridLines(minorGridLines, "#1a1a3e", 0.5)}
           {renderGridLines(majorGridLines, "#2a2a5e", 1)}
-        </Layer>
+        </Layer>}
 
         <Layer>
           <Line points={[landBoundX, landBoundY, landBoundX + landBoundW, landBoundY,
@@ -1356,7 +1509,7 @@ export default function FloorPlanCanvas() {
             text={`${landLength}m`} fontSize={10} fill="#4a7cff" fontFamily="monospace" />
         </Layer>
 
-        <Layer>
+        {visibleLayers.fills && <Layer>
           {floorFills.map((fill) => {
             const pts: number[] = [];
             fill.points.forEach((p) => pts.push(p.x, p.y));
@@ -1375,9 +1528,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.walls && <Layer>
           {walls.map((wall) => {
             const ep = cleanEndpoints.get(wall.id);
             const cx1 = ep?.x1 ?? wall.x1, cy1 = ep?.y1 ?? wall.y1;
@@ -1405,9 +1558,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.walls && <Layer>
           {arcWalls.map((aw) => {
             const isSelected = aw.id === selectedArcWallId;
             const r = aw.radius * GRID_SIZE;
@@ -1429,9 +1582,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.walls && <Layer>
           {curtainWalls.map((cw) => {
             const isSelected = cw.id === selectedCurtainWallId;
             const dx = cw.x2 - cw.x1;
@@ -1449,9 +1602,9 @@ export default function FloorPlanCanvas() {
                 stroke={isSelected ? "#4a7cff" : "#60a5fa"} strokeWidth={2} />
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.walls && <Layer>
           {slabs.map((sl) => {
             const isSelected = sl.id === selectedSlabId;
             const pts: number[] = sl.points.flatMap((p) => [p.x, p.y]);
@@ -1467,9 +1620,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.openings && <Layer>
           {openings.map((opening) => {
             const pw = walls.find((w) => w.id === opening.wallId);
             if (!pw) return null;
@@ -1538,9 +1691,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.columns && <Layer>
           {columns.map((col) => {
             const isSelected = col.id === selectedColumnId;
             const hw = (col.width * GRID_SIZE) / 2;
@@ -1565,9 +1718,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.annotations && <Layer>
           {labels.map((lbl) => {
             const isSelected = lbl.id === selectedLabelId;
             return (
@@ -1580,9 +1733,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.furniture && <Layer>
           {furniture.map((item) => {
             const isSelected = item.id === selectedFurnitureId;
             const hw = (item.width * GRID_SIZE) / 2;
@@ -1597,9 +1750,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.annotations && <Layer>
           {measureLines.map((line) => (
             <Group key={line.id}>
               <Line points={[line.x1, line.y1, line.x2, line.y2]} stroke="#f59e0b" strokeWidth={1.5} />
@@ -1610,9 +1763,19 @@ export default function FloorPlanCanvas() {
                 fontSize={10} fill="#f59e0b" fontFamily="monospace" />
             </Group>
           ))}
-        </Layer>
+          {tapeMeasureLines.map((line) => (
+            <Group key={line.id}>
+              <Line points={[line.x1, line.y1, line.x2, line.y2]} stroke="#10b981" strokeWidth={2} dash={[5, 3]} />
+              <Circle x={line.x1} y={line.y1} radius={3} fill="#10b981" />
+              <Circle x={line.x2} y={line.y2} radius={3} fill="#10b981" />
+              <Text x={(line.x1 + line.x2) / 2 - 25} y={(line.y1 + line.y2) / 2 - 12}
+                text={`${(distance({ x: line.x1, y: line.y1 }, { x: line.x2, y: line.y2 }) / GRID_SIZE).toFixed(2)} m`}
+                fontSize={10} fill="#10b981" fontFamily="monospace" />
+            </Group>
+          ))}
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.annotations && <Layer>
           {angularDimensions.map((ad) => {
             const pts: number[] = [];
             const steps = 24;
@@ -1634,9 +1797,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.annotations && <Layer>
           {leaderArrows.map((la) => {
             const dx = la.x2 - la.x1;
             const dy = la.y2 - la.y1;
@@ -1659,9 +1822,9 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
-        <Layer>
+        {visibleLayers.annotations && <Layer>
           {areaPolygons.map((ap) => {
             const pts: number[] = ap.points.flatMap((p) => [p.x, p.y]);
             const area = polygonArea(ap.points) / (GRID_SIZE * GRID_SIZE);
@@ -1675,7 +1838,7 @@ export default function FloorPlanCanvas() {
               </Group>
             );
           })}
-        </Layer>
+        </Layer>}
 
         <Layer>
           {snapDot}

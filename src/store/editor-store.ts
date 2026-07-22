@@ -45,6 +45,12 @@ export const useEditorStore = create<EditorStore>((set) => ({
   areaPolygonPoints: [],
   leaderArrowStart: null,
   isDrawing: false,
+  visibleLayers: {
+    walls: true, openings: true, columns: true,
+    furniture: true, annotations: true, fills: true, grid: true,
+  },
+  tapeMeasureLines: [],
+  roomPolygons: [],
   walls: [],
   arcWalls: [],
   curtainWalls: [],
@@ -181,6 +187,37 @@ export const useEditorStore = create<EditorStore>((set) => ({
       leaderArrowStart: null,
       isDrawing: false,
     }),
+
+  toggleLayerVisibility: (layer) =>
+    set((s) => ({
+      visibleLayers: { ...s.visibleLayers, [layer]: !s.visibleLayers[layer] },
+    })),
+
+  setLayerVisibility: (layer, visible) =>
+    set((s) => ({
+      visibleLayers: { ...s.visibleLayers, [layer]: visible },
+    })),
+
+  addTapeMeasureLine: (line) =>
+    set((s) => ({
+      tapeMeasureLines: [...s.tapeMeasureLines, line],
+    })),
+
+  clearTapeMeasureLines: () =>
+    set({ tapeMeasureLines: [] }),
+
+  addRoomPolygon: (ap) =>
+    set((s) => ({
+      roomPolygons: [...s.roomPolygons, ap],
+    })),
+
+  removeRoomPolygon: (id) =>
+    set((s) => ({
+      roomPolygons: s.roomPolygons.filter((r) => r.id !== id),
+    })),
+
+  clearRoomPolygons: () =>
+    set({ roomPolygons: [] }),
 
   addWall: (wall) =>
     set((s) => ({
