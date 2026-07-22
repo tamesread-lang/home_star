@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useEditorStore } from "@/store/editor-store";
 import type { Wall, Opening, FurnitureItem, Column } from "@/types/editor";
-import { computeCleanEndpoints } from "@/types/editor";
+import { computeCleanEndpoints } from "@/utils/geometry";
 import { RotateCcw, Eye, Box, Maximize2, Minimize2 } from "lucide-react";
 
 const GRID_SIZE = 50;

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import TopNavBar from "@/components/editor/TopNavBar";
-import ToolPalette from "@/components/editor/ToolPalette";
-import CatalogPanel from "@/components/editor/CatalogPanel";
+import Header from "@/components/editor/toolbars/Header";
+import ToolPalette from "@/components/editor/toolbars/ToolPalette";
+import CatalogPanel from "@/components/editor/panels/CatalogPanel";
 import Workspace from "@/components/editor/Workspace";
-import InspectorPanel from "@/components/editor/InspectorPanel";
+import InspectorPanel from "@/components/editor/properties/InspectorPanel";
 import { useEditorStore } from "@/store/editor-store";
 import type { Tool } from "@/types/editor";
 
@@ -93,7 +93,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground">
-      <TopNavBar />
+      <Header />
       <div className="flex flex-1 min-h-0">
         <ToolPalette />
         <CatalogPanel />

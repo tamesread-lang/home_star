@@ -1,16 +1,16 @@
 "use client";
 
 import { useEditorStore } from "@/store/editor-store";
-import { FURNITURE_CATALOG } from "@/types/editor";
+import { FURNITURE_CATALOG } from "@/constants/editor";
 import type { FurnitureTemplate } from "@/types/editor";
 import { useState } from "react";
 
 const CATEGORY_ICONS: Record<string, string> = {
-  "Living Room": "🛋",
-  Bedroom: "🛏",
-  Bathroom: "🚿",
-  Kitchen: "🍳",
-  Architectural: "🏗",
+  "Living Room": "\u{1F6CB}",
+  Bedroom: "\u{1F6CF}",
+  Bathroom: "\u{1F6BF}",
+  Kitchen: "\u{1F373}",
+  Architectural: "\u{1F3D7}",
 };
 
 export default function CatalogPanel() {
@@ -61,7 +61,7 @@ export default function CatalogPanel() {
                   : "text-muted hover:text-foreground hover:bg-surface-alt"
               }`}
             >
-              <span>{CATEGORY_ICONS[category] || "📦"}</span>
+              <span>{CATEGORY_ICONS[category] || "\u{1F4E6}"}</span>
               {category}
             </button>
             {openCategory === category && (
@@ -82,7 +82,7 @@ export default function CatalogPanel() {
                     >
                       <span>{item.name}</span>
                       <span className="text-[10px] opacity-60">
-                        {item.width.toFixed(1)}×{item.height.toFixed(1)}m
+                        {item.width.toFixed(1)}\u00D7{item.height.toFixed(1)}m
                       </span>
                     </button>
                   );

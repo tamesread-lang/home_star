@@ -9,18 +9,11 @@ import type {
   Tool, ArcWall, CurtainWall, Slab, SnapMode, SnapResult, CleanWallEndpoints,
 } from "@/types/editor";
 import {
-  openingPositionOnWall, getDefaultThickness, distance, computeCleanEndpoints,
+  openingPositionOnWall, distance, computeCleanEndpoints,
   wallOffsetPoints, projectPointOnSegment, segmentIntersection,
-  getWallMidpoint, polygonArea, angleBetweenPoints,
-} from "@/types/editor";
-
-const GRID_SIZE = 50;
-const SNAP_THRESHOLD = 12;
-
-function snapToGrid(value: number, gridSize: number): number {
-  if (gridSize <= 0) return value;
-  return Math.round(value / gridSize) * gridSize;
-}
+  getWallMidpoint, polygonArea, angleBetweenPoints, snapToGrid,
+} from "@/utils/geometry";
+import { getDefaultThickness, GRID_SIZE, SNAP_THRESHOLD } from "@/constants/editor";
 
 function findNearestWallIntersection(wall: Wall, walls: Wall[]): { wall: Wall; point: Point } | null {
   const a1: Point = { x: wall.x1, y: wall.y1 };
@@ -427,7 +420,6 @@ export default function FloorPlanCanvas() {
     onMouseUp?: (pos: Point) => void;
     cursor?: string;
   }> = {
-    // ── SELECT ──
     select: {
       cursor: "pointer",
       onMouseDown: (pos) => {
@@ -451,7 +443,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── MOVE_PAN ──
     move_pan: {
       cursor: "grab",
       onMouseDown: (pos) => {
@@ -481,7 +472,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── ROTATE ──
     rotate: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -492,7 +482,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── TRIM ──
     trim: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -555,7 +544,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── EXTEND ──
     extend: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -602,7 +590,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── OFFSET ──
     offset: {
       cursor: "copy",
       onMouseDown: (pos) => {
@@ -620,7 +607,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── SPLIT ──
     split: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -653,7 +639,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── MIRROR ──
     mirror: {
       cursor: "copy",
       onMouseDown: (pos) => {
@@ -668,7 +653,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── ERASER ──
     eraser: {
       cursor: "not-allowed",
       onMouseDown: (pos) => {
@@ -691,7 +675,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── WALL_SINGLE ──
     wall_single: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -723,7 +706,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── WALL_POLYLINE ──
     wall_polyline: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -753,7 +735,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── WALL_ARC ──
     wall_arc: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -785,7 +766,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── ROOM_RECTANGLE ──
     room_rectangle: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -823,7 +803,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── COLUMN_SQUARE ──
     column_square: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -838,7 +817,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── COLUMN_CIRCULAR ──
     column_circular: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -854,7 +832,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── CURTAIN_WALL ──
     curtain_wall: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -877,7 +854,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── SLAB_FLOOR ──
     slab_floor: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -890,7 +866,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── DOOR_SINGLE ──
     door_single: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -905,7 +880,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── DOOR_DOUBLE ──
     door_double: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -920,7 +894,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── DOOR_SLIDING ──
     door_sliding: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -935,7 +908,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── WINDOW_STANDARD ──
     window_standard: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -950,7 +922,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── WINDOW_CORNER ──
     window_corner: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -965,7 +936,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── WALL_OPENING ──
     wall_opening: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -980,7 +950,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── DIMENSION_LINEAR ──
     dimension_linear: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -1004,7 +973,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── DIMENSION_ANGLE ──
     dimension_angle: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -1033,7 +1001,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── AREA_INSPECTOR ──
     area_inspector: {
       cursor: "cell",
       onMouseDown: (pos) => {
@@ -1045,7 +1012,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── TEXT_ANNOTATION ──
     text_annotation: {
       cursor: "text",
       onMouseDown: (pos) => {
@@ -1054,7 +1020,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── LEADER_ARROW ──
     leader_arrow: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -1079,7 +1044,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── TAPE_MEASURE ──
     tape_measure: {
       cursor: "crosshair",
       onMouseDown: (pos) => {
@@ -1103,7 +1067,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── COLOR_FILL ──
     color_fill: {
       cursor: "cell",
       onMouseDown: (pos) => {
@@ -1177,7 +1140,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── LAYER_TOGGLE ──
     layer_toggle: {
       cursor: "pointer",
       onMouseDown: () => {
@@ -1194,7 +1156,6 @@ export default function FloorPlanCanvas() {
       },
     },
 
-    // ── GRID_CONFIG ──
     grid_config: {
       cursor: "pointer",
       onMouseDown: () => {
@@ -1373,7 +1334,7 @@ export default function FloorPlanCanvas() {
       ]} stroke="#4a7cff" strokeWidth={1} dash={[4, 4]} />
       <Text x={(drawingStartRef.current.x + mousePos.x) / 2 - 20}
         y={(drawingStartRef.current.y + mousePos.y) / 2 - 12}
-        text={`${(Math.abs(mousePos.x - drawingStartRef.current.x) / GRID_SIZE).toFixed(1)} × ${(Math.abs(mousePos.y - drawingStartRef.current.y) / GRID_SIZE).toFixed(1)} m`}
+        text={`${(Math.abs(mousePos.x - drawingStartRef.current.x) / GRID_SIZE).toFixed(1)} \u00D7 ${(Math.abs(mousePos.y - drawingStartRef.current.y) / GRID_SIZE).toFixed(1)} m`}
         fontSize={10} fill="#4a7cff" fontFamily="monospace" />
     </>
   );
@@ -1445,7 +1406,7 @@ export default function FloorPlanCanvas() {
       ))}
       {areaPolygonPoints.length >= 2 && (
         <Text x={mousePos.x + 8} y={mousePos.y - 8}
-          text={`Area: ${(polygonArea([...areaPolygonPoints, mousePos]) / (GRID_SIZE * GRID_SIZE)).toFixed(2)} m²`}
+          text={`Area: ${(polygonArea([...areaPolygonPoints, mousePos]) / (GRID_SIZE * GRID_SIZE)).toFixed(2)} m\u00B2`}
           fontSize={10} fill="#a855f7" fontFamily="monospace" />
       )}
     </Group>
@@ -1527,7 +1488,7 @@ export default function FloorPlanCanvas() {
               <Group key={fill.id}>
                 <Line points={pts} closed fill={color} stroke={border} strokeWidth={1} />
                 <Text x={(minX + maxX) / 2 - 15} y={(minY + maxY) / 2 - 5}
-                  text={`${area} m²`} fontSize={9} fill="#ffffff80" fontFamily="monospace" />
+                  text={`${area} m\u00B2`} fontSize={9} fill="#ffffff80" fontFamily="monospace" />
               </Group>
             );
           })}
@@ -1618,7 +1579,7 @@ export default function FloorPlanCanvas() {
               <Group key={sl.id}>
                 <Line points={pts} closed fill="#6b728030" stroke={isSelected ? "#4a7cff" : "#6b7280"}
                   strokeWidth={isSelected ? 2 : 1} />
-                <Text x={cx - 20} y={cy - 5} text={`Slab ${area.toFixed(1)} m²`}
+                <Text x={cx - 20} y={cy - 5} text={`Slab ${area.toFixed(1)} m\u00B2`}
                   fontSize={9} fill="#9ca3af" fontFamily="monospace" />
               </Group>
             );
@@ -1795,7 +1756,7 @@ export default function FloorPlanCanvas() {
                 <Line points={pts} stroke="#f59e0b" strokeWidth={1.5} />
                 <Text x={ad.centerX + (r + 10) * Math.cos(midAngle) - 15}
                   y={ad.centerY + (r + 10) * Math.sin(midAngle) - 8}
-                  text={`${(Math.abs(ea - sa) * 180 / Math.PI).toFixed(1)}°`}
+                  text={`${(Math.abs(ea - sa) * 180 / Math.PI).toFixed(1)}\u00B0`}
                   fontSize={10} fill="#f59e0b" fontFamily="monospace" />
               </Group>
             );
@@ -1836,7 +1797,7 @@ export default function FloorPlanCanvas() {
             return (
               <Group key={ap.id}>
                 <Line points={pts} closed fill="#a855f720" stroke="#a855f7" strokeWidth={1.5} />
-                <Text x={cx - 20} y={cy - 5} text={`${area.toFixed(2)} m²`}
+                <Text x={cx - 20} y={cy - 5} text={`${area.toFixed(2)} m\u00B2`}
                   fontSize={11} fill="#a855f7" fontFamily="monospace" fontStyle="bold" />
               </Group>
             );
@@ -1859,15 +1820,6 @@ export default function FloorPlanCanvas() {
           {furniturePreview}
         </Layer>
       </Stage>
-
-      {walls.length === 0 && !drawingStartRef.current && !activeFurnitureTemplate && activeTool === "select" && (
-        <div className="absolute inset-4 border border-dashed border-border rounded-lg flex items-center justify-center pointer-events-none">
-          <div className="text-center">
-            <p className="text-muted text-sm">2D Floor Plan Canvas</p>
-            <p className="text-muted/50 text-xs mt-1">Select a drafting tool to start</p>
-          </div>
-        </div>
-      )}
 
       {(activeTool === "tape_measure" && tapeMeasurePoints.length === 1) && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-surface border border-border rounded-lg px-4 py-2 text-xs text-muted shadow-lg z-10">
@@ -1902,7 +1854,7 @@ export default function FloorPlanCanvas() {
       {activeFurnitureTemplate && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-surface border border-border rounded-lg px-4 py-2 text-xs text-muted shadow-lg z-10">
           Click to place <span className="text-accent font-medium">{activeFurnitureTemplate.name}</span>
-          {" "}({activeFurnitureTemplate.width.toFixed(1)}×{activeFurnitureTemplate.height.toFixed(1)}m)
+          {" "}({activeFurnitureTemplate.width.toFixed(1)}\u00D7{activeFurnitureTemplate.height.toFixed(1)}m)
         </div>
       )}
     </div>

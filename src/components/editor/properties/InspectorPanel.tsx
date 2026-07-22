@@ -2,10 +2,9 @@
 
 import { useEditorStore } from "@/store/editor-store";
 import { useMemo } from "react";
-import {
-  wallLengthMeters, wallLengthFromMeters, getDefaultThickness,
-  polygonArea, distance, TOOL_LABELS, type Tool, type SnapMode,
-} from "@/types/editor";
+import { getDefaultThickness, TOOL_LABELS } from "@/constants/editor";
+import { wallLengthMeters, wallLengthFromMeters, polygonArea, distance } from "@/utils/geometry";
+import type { Tool, SnapMode } from "@/types/editor";
 
 const SNAP_OPTIONS = [
   { label: "1.0 m", value: 50 },
@@ -187,14 +186,12 @@ export default function InspectorPanel() {
       </h2>
 
       <div className="space-y-4">
-        {/* Active tool tip */}
         {TOOL_TIP_TEXT[activeTool] && (
           <div className="text-[10px] text-muted/70 leading-relaxed bg-surface-alt rounded p-2 border border-border">
             {TOOL_TIP_TEXT[activeTool]}
           </div>
         )}
 
-        {/* Land Dimensions */}
         <div>
           <h3 className="text-xs font-medium text-muted mb-2">Land Dimensions</h3>
           <div className="space-y-3">
@@ -212,14 +209,13 @@ export default function InspectorPanel() {
             </div>
             <div className="flex items-center justify-between">
               <label className="text-sm text-muted">Area</label>
-              <span className="text-sm font-mono tabular-nums font-semibold text-accent">{totalArea} m²</span>
+              <span className="text-sm font-mono tabular-nums font-semibold text-accent">{totalArea} m\u00B2</span>
             </div>
           </div>
         </div>
 
         <div className="w-full h-px bg-border" />
 
-        {/* Snap Settings */}
         <div>
           <h3 className="text-xs font-medium text-muted mb-2">Snap Engine</h3>
           <div className="space-y-2">
@@ -247,7 +243,6 @@ export default function InspectorPanel() {
 
         <div className="w-full h-px bg-border" />
 
-        {/* Wall Drawing */}
         <div>
           <h3 className="text-xs font-medium text-muted mb-2">Wall Drawing</h3>
           <div className="space-y-2">
@@ -273,7 +268,6 @@ export default function InspectorPanel() {
 
         <div className="w-full h-px bg-border" />
 
-        {/* Column Alignment */}
         <div>
           <h3 className="text-xs font-medium text-muted mb-2">Column Alignment</h3>
           <div className="flex flex-wrap gap-1">
@@ -288,7 +282,6 @@ export default function InspectorPanel() {
 
         <div className="w-full h-px bg-border" />
 
-        {/* Layers */}
         <div>
           <h3 className="text-xs font-medium text-muted mb-2">Active Layer</h3>
           <div className="flex flex-wrap gap-1">
@@ -303,7 +296,6 @@ export default function InspectorPanel() {
 
         <div className="w-full h-px bg-border" />
 
-        {/* Global Settings */}
         <div>
           <h3 className="text-xs font-medium text-muted mb-2">Global Settings</h3>
           <div className="space-y-3">
@@ -340,7 +332,6 @@ export default function InspectorPanel() {
           </div>
         </div>
 
-        {/* ── Selection Properties ── */}
         {selectedWall && (
           <>
             <div className="w-full h-px bg-border" />
@@ -587,18 +578,18 @@ export default function InspectorPanel() {
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-muted">Rotation</label>
-                  <span className="text-sm font-mono tabular-nums">{selectedFurniture.rotation}°</span>
+                  <span className="text-sm font-mono tabular-nums">{selectedFurniture.rotation}\u00B0</span>
                 </div>
                 <div>
                   <input type="range" min={0} max={360} step={1} value={selectedFurniture.rotation}
                     onChange={(e) => updateFurniture(selectedFurniture.id, { rotation: parseFloat(e.target.value) })}
                     className="w-full accent-accent" />
                   <div className="flex justify-between text-[9px] text-muted/50 font-mono mt-0.5">
-                    <span>0°</span><span>180°</span><span>360°</span>
+                    <span>0\u00B0</span><span>180\u00B0</span><span>360\u00B0</span>
                   </div>
                 </div>
                 <button onClick={() => updateFurniture(selectedFurniture.id, { rotation: (selectedFurniture.rotation + 90) % 360 })}
-                  className="w-full text-xs text-accent border border-accent/30 rounded px-2 py-1 hover:bg-accent/10 mt-1">Rotate 90°</button>
+                  className="w-full text-xs text-accent border border-accent/30 rounded px-2 py-1 hover:bg-accent/10 mt-1">Rotate 90\u00B0</button>
                 <button onClick={() => { useEditorStore.getState().deleteFurniture(selectedFurniture.id); useEditorStore.getState().clearSelection(); }}
                   className="w-full text-xs text-red-400 border border-red-400/30 rounded px-2 py-1 hover:bg-red-400/10 mt-1">Delete</button>
               </div>

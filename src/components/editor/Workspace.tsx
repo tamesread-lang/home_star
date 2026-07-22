@@ -1,7 +1,7 @@
 "use client";
 
-import FloorPlanCanvas from "./FloorPlanCanvas";
-import ThreeScene from "@/components/three/ThreeScene";
+import FloorPlanCanvas from "./canvas/FloorPlanCanvas";
+import ThreeScene from "./panels/ThreeScene";
 import { useEditorStore } from "@/store/editor-store";
 
 export default function Workspace() {

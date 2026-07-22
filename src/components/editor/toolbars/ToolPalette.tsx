@@ -12,7 +12,7 @@ import {
 import IconButton from "@/components/ui/IconButton";
 import { useEditorStore } from "@/store/editor-store";
 import type { Tool, ToolCategory } from "@/types/editor";
-import { TOOL_LABELS, TOOL_SHORTCUTS, TOOL_CATEGORIES } from "@/types/editor";
+import { TOOL_LABELS, TOOL_SHORTCUTS, TOOL_CATEGORIES } from "@/constants/editor";
 
 const CATEGORIES: ToolCategory[] = ["drafting", "openings", "modify", "annotations", "utilities"];
 

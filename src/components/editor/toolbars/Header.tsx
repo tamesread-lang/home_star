@@ -1,10 +1,10 @@
 "use client";
 
-import { Undo2, Redo2, Download } from "lucide-react";
+import { Undo2, Redo2 } from "lucide-react";
 import IconButton from "@/components/ui/IconButton";
 import { useEditorStore } from "@/store/editor-store";
 
-export default function TopNavBar() {
+export default function Header() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
 
@@ -16,22 +16,9 @@ export default function TopNavBar() {
       </div>
 
       <div className="flex items-center gap-1">
-        <IconButton
-          icon={Undo2}
-          label="Undo"
-          onClick={undo}
-        />
-        <IconButton
-          icon={Redo2}
-          label="Redo"
-          onClick={redo}
-        />
+        <IconButton icon={Undo2} label="Undo" onClick={undo} />
+        <IconButton icon={Redo2} label="Redo" onClick={redo} />
       </div>
-
-      <button className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors">
-        <Download size={16} />
-        Export
-      </button>
     </header>
   );
 }
